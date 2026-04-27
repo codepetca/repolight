@@ -29,6 +29,11 @@ export const analysisRuns = pgTable('analysis_runs', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   status: text('status').notNull().default('queued'),
+  externalSystem: text('external_system'),
+  externalRunKey: text('external_run_key'),
+  externalAssignmentId: text('external_assignment_id'),
+  externalClassroomId: text('external_classroom_id'),
+  externalMetadataJson: jsonb('external_metadata_json').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   startAt: timestamp('start_at', { withTimezone: true, mode: 'string' }).notNull(),
   endAt: timestamp('end_at', { withTimezone: true, mode: 'string' }).notNull(),
   timezone: text('timezone').notNull().default('America/Toronto'),
@@ -40,7 +45,9 @@ export const analysisRuns = pgTable('analysis_runs', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   completedAt: timestamp('completed_at', { withTimezone: true, mode: 'string' }),
-})
+}, (table) => ({
+  uniqExternalRun: uniqueIndex('uniq_analysis_run_external_key').on(table.userId, table.externalSystem, table.externalRunKey),
+}))
 
 export const runContributors = pgTable('run_contributors', {
   id: uuid('id').primaryKey().defaultRandom(),
