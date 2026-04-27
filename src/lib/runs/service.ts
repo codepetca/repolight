@@ -34,12 +34,30 @@ export interface CreateRunInput {
   endAt: string
   timezone: string
   rubric?: Partial<RubricConfig>
+  externalSystem?: string | null
+  externalRunKey?: string | null
+  externalAssignmentId?: string | null
+  externalClassroomId?: string | null
+  externalMetadata?: Record<string, unknown>
+}
+
+export interface CreateRunFromParsedInput extends Omit<CreateRunInput, 'csvText'> {
+  parsed: {
+    contributors: ContributorIdentity[]
+    repositories: RepositoryTarget[]
+    warnings: RunWarning[]
+  }
 }
 
 export interface RunSummary {
   id: string
   name: string
   status: string
+  externalSystem: string | null
+  externalRunKey: string | null
+  externalAssignmentId: string | null
+  externalClassroomId: string | null
+  externalMetadata: Record<string, unknown>
   startAt: string
   endAt: string
   timezone: string
@@ -85,21 +103,58 @@ export interface RunResults {
 }
 
 export async function createRun(userId: string, input: CreateRunInput): Promise<RunDetail> {
+  return createRunFromParsed(userId, {
+    ...input,
+    parsed: parseRunCsv(input.csvText),
+  })
+}
+
+export async function createRunFromParsed(userId: string, input: CreateRunFromParsedInput): Promise<RunDetail> {
   const startAt = normalizeIso(input.startAt, 'startAt')
   const endAt = normalizeIso(input.endAt, 'endAt')
   if (new Date(startAt).getTime() > new Date(endAt).getTime()) {
     throw new Error('startAt must be before endAt.')
   }
 
-  const parsed = parseRunCsv(input.csvText)
+  const parsed = input.parsed
+  if (parsed.contributors.length === 0 || parsed.repositories.length === 0) {
+    throw new Error('Run must include at least one contributor and repository.')
+  }
+  if (parsed.contributors.length > 100 || parsed.repositories.length > 100) {
+    throw new Error('V1 supports up to 100 contributors and 100 repositories per run.')
+  }
+
   const rubric = normalizeRubric(input.rubric)
   const database = getDb()
   const now = new Date().toISOString()
+  const externalSystem = normalizedOptional(input.externalSystem)
+  const externalRunKey = normalizedOptional(input.externalRunKey)
+  const externalAssignmentId = normalizedOptional(input.externalAssignmentId)
+  const externalClassroomId = normalizedOptional(input.externalClassroomId)
+
+  if (externalSystem && externalRunKey) {
+    const [existingRun] = await database
+      .select()
+      .from(analysisRuns)
+      .where(and(
+        eq(analysisRuns.userId, userId),
+        eq(analysisRuns.externalSystem, externalSystem),
+        eq(analysisRuns.externalRunKey, externalRunKey),
+      ))
+      .limit(1)
+
+    if (existingRun) return getRunDetail(userId, existingRun.id)
+  }
 
   const [run] = await database.insert(analysisRuns).values({
     userId,
     name: input.name?.trim() || `Repo analysis ${now.slice(0, 10)}`,
     status: 'queued',
+    externalSystem,
+    externalRunKey,
+    externalAssignmentId,
+    externalClassroomId,
+    externalMetadataJson: input.externalMetadata || {},
     startAt,
     endAt,
     timezone: input.timezone || 'America/Toronto',
@@ -387,6 +442,11 @@ function summarizeRun(run: AnalysisRun): RunSummary {
     id: run.id,
     name: run.name,
     status: run.status,
+    externalSystem: run.externalSystem,
+    externalRunKey: run.externalRunKey,
+    externalAssignmentId: run.externalAssignmentId,
+    externalClassroomId: run.externalClassroomId,
+    externalMetadata: run.externalMetadataJson || {},
     startAt: run.startAt,
     endAt: run.endAt,
     timezone: run.timezone,
@@ -447,6 +507,11 @@ function normalizeIso(value: string, field: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) throw new Error(`${field} must be a valid date/time.`)
   return date.toISOString()
+}
+
+function normalizedOptional(value: string | null | undefined): string | null {
+  const normalized = value?.trim()
+  return normalized || null
 }
 
 function mergeWarnings(existing: RunWarning[], next: RunWarning[]): RunWarning[] {
