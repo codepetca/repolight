@@ -1,6 +1,6 @@
 # Repocat
 
-Repocat is a small standalone Next.js app for CSV-driven public GitHub repository contribution analysis. It ports the deterministic Pika repo-review engine into an isolated `src/lib/engine` module and stores raw normalized events so rubric changes can recalculate grades without fetching GitHub again.
+Repocat is a small standalone Next.js app for classroom-shaped public GitHub repository contribution analysis. The deterministic analyzer lives in `src/lib/engine`, while Repocat Classroom adds classes, student repo mappings, assignment dashboards, and analysis handoff for tools such as Pika.
 
 ## Stack
 
@@ -41,6 +41,33 @@ Optional:
 - `notes`
 
 `commit_emails` may contain comma- or semicolon-separated addresses.
+
+## Repocat Classroom MVP
+
+The Classroom layer is intentionally small:
+
+- Create a class with an optional GitHub org and default repo prefix.
+- Create an assignment from a CSV of one repository per student.
+- Track per-student repository status fields such as invite state, activity state, successful pushes, and first/last push timestamps.
+- Create a normal Repocat analysis run from the classroom assignment mapping.
+
+Classroom assignment CSV fields:
+
+Required:
+
+- `student_name` or `contributor_name`
+- `repo_url`
+- At least one of `github_login` or `commit_emails`
+
+Optional:
+
+- `student_id` or `contributor_id`
+- `email`
+- `default_branch`
+- `group`
+- `notes`
+
+GitHub App repo provisioning and webhook updates are planned as the next layer. The current MVP keeps manual CSV import as the fallback path so the analysis workflow remains usable immediately.
 
 ## Server API
 

@@ -74,12 +74,32 @@ button:disabled {
   backdrop-filter: blur(14px);
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
   font-weight: 760;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.nav-links a:hover {
+  color: var(--text);
 }
 
 .brand-mark {
@@ -116,6 +136,20 @@ button:disabled {
 .page-subtitle {
   margin: 6px 0 0;
   color: var(--muted);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.2;
 }
 
 .button {
@@ -256,6 +290,22 @@ button:disabled {
   gap: 8px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.classroom-stat-row {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.classroom-stat-row span,
+.compact-row span,
+.data-table td a,
+.data-table td:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .badge {
@@ -404,6 +454,100 @@ button:disabled {
   font-weight: 760;
 }
 
+.metric-text {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.two-column-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 16px;
+  align-items: start;
+  margin: 16px 0;
+}
+
+.list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.list-item:hover {
+  border-color: #b7b0a0;
+  background: var(--surface-2);
+}
+
+.list-item span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+
+.list-item span:nth-child(2) span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-item-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--accent-strong);
+}
+
+.compact-list {
+  display: grid;
+  gap: 10px;
+}
+
+.compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.compact-row span:first-child {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.roadmap-grid div {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.roadmap-grid span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .chart {
   width: 100%;
   min-height: 240px;
@@ -449,7 +593,9 @@ button:disabled {
 
 @media (max-width: 900px) {
   .page-header,
-  .topbar {
+  .topbar,
+  .topbar-left,
+  .section-head {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -457,7 +603,9 @@ button:disabled {
   .results-layout,
   .form-grid,
   .metric-strip,
-  .rubric-grid {
+  .rubric-grid,
+  .two-column-layout,
+  .roadmap-grid {
     grid-template-columns: 1fr;
   }
 
