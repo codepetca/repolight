@@ -85,4 +85,56 @@ GET  /api/v1/runs/:id/results
 GET  /api/v1/runs/:id/export.csv
 ```
 
-Results include Pika-friendly `score_completion`, `score_thinking`, `score_workflow`, `percent`, `letter`, `achievement`, deterministic `feedback`, confidence, evidence, warnings, and the full Repocat metrics.
+Results use Repocat's canonical normalized analysis shape. Component scores are decimals from `0` to `1`; consuming apps decide how to map them into their own grading scale.
+
+```json
+{
+  "contributors": [
+    {
+      "contributor": {
+        "id": "student-123",
+        "name": "Alex Lee",
+        "github_login": "alex"
+      },
+      "activity": {
+        "commit_count": 7,
+        "active_days": 4,
+        "session_count": 4,
+        "burst_ratio": 0.1
+      },
+      "contribution": {
+        "weighted_contribution": 9,
+        "relative_contribution_share": 1,
+        "semantic_breakdown": {}
+      },
+      "component_scores": {
+        "impact": 0.9,
+        "workflow": 0.7,
+        "quality": 0.82,
+        "collaboration": 0
+      },
+      "grade_suggestion": {
+        "raw_score": 0.82,
+        "cohort_relative_score": 1,
+        "percent": 91,
+        "letter": "A"
+      },
+      "confidence": {
+        "value": 0.8,
+        "warnings": []
+      },
+      "achievement": "Iteration Pro",
+      "feedback": "Deterministic evidence-based feedback.",
+      "evidence": []
+    }
+  ]
+}
+```
+
+For Pika, the recommended mapping is:
+
+```ts
+score_completion = Math.round(component_scores.impact * 10)
+score_thinking = Math.round(component_scores.quality * 10)
+score_workflow = Math.round(component_scores.workflow * 10)
+```
