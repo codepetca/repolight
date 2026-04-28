@@ -124,15 +124,15 @@ export default async function ClassroomAssignmentPage({
             <div className="roadmap-grid">
               <div>
                 <strong>Current</strong>
-                <span>Manual repo CSV, analysis run creation, status dashboard.</span>
+                <span>Manual repo CSV, optional repo provisioning, analysis handoff, status dashboard.</span>
               </div>
               <div>
                 <strong>Next</strong>
-                <span>GitHub App creates repos from templates and invites students.</span>
+                <span>Webhooks update invitation, push, branch, PR, and activity signals.</span>
               </div>
               <div>
                 <strong>Then</strong>
-                <span>Webhooks update invitation, push, branch, PR, and activity signals.</span>
+                <span>Roster-only assignment setup without prebuilt repo URLs.</span>
               </div>
             </div>
           </div>

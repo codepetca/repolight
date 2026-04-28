@@ -16,8 +16,12 @@ Repocat is a small standalone Next.js app for classroom-shaped public GitHub rep
 2. Set `DATABASE_URL` to a Neon Postgres connection string.
 3. Set `SESSION_SECRET` to a random value with at least 32 characters.
 4. Optionally set `GITHUB_TOKEN` to raise public GitHub API rate limits.
-5. Optionally set `REPOCAT_API_KEY` to enable server-to-server access under `/api/v1`.
-6. Install dependencies and migrate:
+5. Optionally set GitHub App env vars to enable classroom repo provisioning:
+   - `GITHUB_APP_ID`
+   - `GITHUB_APP_INSTALLATION_ID`
+   - `GITHUB_APP_PRIVATE_KEY`
+6. Optionally set `REPOCAT_API_KEY` to enable server-to-server access under `/api/v1`.
+7. Install dependencies and migrate:
 
 ```bash
 npm install
@@ -67,7 +71,9 @@ Optional:
 - `group`
 - `notes`
 
-GitHub App repo provisioning and webhook updates are planned as the next layer. The current MVP keeps manual CSV import as the fallback path so the analysis workflow remains usable immediately.
+GitHub App repo provisioning can create each mapped student repo from the assignment template and invite the student with `push` access. The current workflow still keeps manual CSV import as the fallback path: each row supplies the intended repo URL/name, and the provisioning step creates that repo from the configured template.
+
+The GitHub App needs repository administration access for org repo creation and collaborator management. Webhook updates for invite acceptance, push activity, branches, and PRs are planned as the next layer.
 
 ## Server API
 
