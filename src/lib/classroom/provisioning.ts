@@ -67,8 +67,9 @@ export async function provisionClassroomRepository(input: {
     return failedResult(input.repository, 'Student is missing a GitHub login.')
   }
 
+  let repository: ProvisionedGitHubRepository | null = null
   try {
-    const repository = await input.client.createRepositoryFromTemplate({
+    repository = await input.client.createRepositoryFromTemplate({
       templateOwner: input.settings.templateOwner,
       templateRepo: input.settings.templateRepo,
       owner: input.settings.owner,
@@ -93,16 +94,24 @@ export async function provisionClassroomRepository(input: {
       error: null,
     }
   } catch (error) {
-    return failedResult(input.repository, error instanceof Error ? error.message : 'Repository provisioning failed.')
+    return failedResult(
+      input.repository,
+      error instanceof Error ? error.message : 'Repository provisioning failed.',
+      repository,
+    )
   }
 }
 
-function failedResult(repository: ProvisioningRepositoryInput, error: string): ProvisioningRepositoryResult {
+function failedResult(
+  repository: ProvisioningRepositoryInput,
+  error: string,
+  provisionedRepository: ProvisionedGitHubRepository | null = null,
+): ProvisioningRepositoryResult {
   return {
     repositoryId: repository.id,
     ok: false,
-    repoUrl: null,
-    branch: repository.branch,
+    repoUrl: provisionedRepository?.htmlUrl || null,
+    branch: provisionedRepository?.defaultBranch || repository.branch,
     invitationStatus: 'failed',
     activityStatus: 'not_started',
     error,

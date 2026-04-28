@@ -118,4 +118,42 @@ describe('provisionClassroomRepository', () => {
       error: 'Student is missing a GitHub login.',
     })
   })
+
+  it('keeps the created repo URL when collaborator invitation fails', async () => {
+    const client = {
+      createRepositoryFromTemplate: vi.fn().mockResolvedValue({
+        fullName: 'yrdsb-peths/dodge-it-solo-alex',
+        htmlUrl: 'https://github.com/yrdsb-peths/dodge-it-solo-alex',
+        defaultBranch: 'main',
+      }),
+      addCollaborator: vi.fn().mockRejectedValue(new Error('student invite failed')),
+    }
+
+    const result = await provisionClassroomRepository({
+      client,
+      settings: {
+        owner: 'yrdsb-peths',
+        templateOwner: 'yrdsb-peths',
+        templateRepo: 'starter',
+        private: true,
+      },
+      repository: {
+        id: 'repo-1',
+        name: 'dodge-it-solo-alex',
+        branch: 'main',
+        student: {
+          githubLogin: 'alex',
+        },
+      },
+    })
+
+    expect(result).toMatchObject({
+      repositoryId: 'repo-1',
+      ok: false,
+      repoUrl: 'https://github.com/yrdsb-peths/dodge-it-solo-alex',
+      branch: 'main',
+      invitationStatus: 'failed',
+      error: 'student invite failed',
+    })
+  })
 })
