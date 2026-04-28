@@ -2,6 +2,7 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import { getDb } from '@/db'
 import {
   analysisRuns,
+  classroomActivityEvents,
   classroomAssignments,
   classroomRepositories,
   classrooms,
@@ -24,6 +25,7 @@ import {
   type ProvisioningClient,
   type ProvisioningRepositoryResult,
 } from '@/lib/classroom/provisioning'
+import type { ClassroomWebhookUpdate } from '@/lib/classroom/webhooks'
 
 export interface ClassroomSummary {
   id: string
@@ -410,6 +412,95 @@ export async function provisionAssignmentRepositories(
     assignment: await getClassroomAssignmentDetail(userId, classroomId, assignmentId),
     results,
   }
+}
+
+export async function applyClassroomWebhookUpdate(
+  update: ClassroomWebhookUpdate,
+  payload: Record<string, unknown>,
+): Promise<{
+  ignored: boolean
+  duplicate: boolean
+  repositoryId: string | null
+  message: string
+}> {
+  const [owner, name] = update.repositoryFullName.split('/')
+  if (!owner || !name) {
+    return { ignored: true, duplicate: false, repositoryId: null, message: 'Webhook payload did not include a valid repository full name.' }
+  }
+
+  const database = getDb()
+  const [repository] = await database
+    .select()
+    .from(classroomRepositories)
+    .where(and(
+      eq(classroomRepositories.owner, owner),
+      eq(classroomRepositories.name, name),
+    ))
+    .limit(1)
+
+  if (!repository) {
+    return { ignored: true, duplicate: false, repositoryId: null, message: 'No classroom repository matched the webhook repository.' }
+  }
+
+  const [student] = await database
+    .select()
+    .from(classroomStudents)
+    .where(eq(classroomStudents.id, repository.studentId))
+    .limit(1)
+
+  if (!student) {
+    return { ignored: true, duplicate: false, repositoryId: repository.id, message: 'Matched repository has no student.' }
+  }
+
+  if (
+    update.eventType === 'member.added' &&
+    update.githubLogin &&
+    student.githubLogin &&
+    update.githubLogin.toLowerCase() !== student.githubLogin.toLowerCase()
+  ) {
+    return { ignored: true, duplicate: false, repositoryId: repository.id, message: 'Member event did not match the assigned student.' }
+  }
+
+  const existing = await database
+    .select()
+    .from(classroomActivityEvents)
+    .where(and(
+      eq(classroomActivityEvents.assignmentId, repository.assignmentId),
+      eq(classroomActivityEvents.eventType, update.eventType),
+      eq(classroomActivityEvents.externalId, update.externalId),
+    ))
+    .limit(1)
+
+  if (existing.length > 0) {
+    return { ignored: false, duplicate: true, repositoryId: repository.id, message: 'Webhook delivery was already processed.' }
+  }
+
+  await database.insert(classroomActivityEvents).values({
+    assignmentId: repository.assignmentId,
+    repositoryId: repository.id,
+    studentId: student.id,
+    eventType: update.eventType,
+    externalId: update.externalId,
+    payloadJson: {
+      summary: update.payloadSummary,
+      payload,
+    },
+    occurredAt: update.occurredAt,
+  })
+
+  await database.update(classroomRepositories)
+    .set({
+      invitationStatus: update.repositoryPatch.invitationStatus || repository.invitationStatus,
+      activityStatus: update.repositoryPatch.activityStatus || repository.activityStatus,
+      successfulPushCount: repository.successfulPushCount + (update.repositoryPatch.incrementSuccessfulPushCount ? 1 : 0),
+      firstPushAt: repository.firstPushAt || update.repositoryPatch.firstPushAt,
+      lastPushAt: update.repositoryPatch.lastPushAt || repository.lastPushAt,
+      lastWebhookAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(classroomRepositories.id, repository.id))
+
+  return { ignored: false, duplicate: false, repositoryId: repository.id, message: 'Webhook processed.' }
 }
 
 async function getClassroomForUser(userId: string, classroomId: string): Promise<Classroom> {
