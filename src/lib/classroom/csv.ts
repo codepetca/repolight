@@ -122,6 +122,10 @@ export function parseClassroomAssignmentCsv(csvText: string): ParsedClassroomAss
     throw new Error(`Classroom assignments support one repository per student in v1. ${multiRepoContributor.name} appears more than once.`)
   }
 
+  if (repositories.size !== rows.length) {
+    throw new Error('Classroom assignments support one student per repository in v1. Two or more rows reference the same repository.')
+  }
+
   if (contributors.size > 100 || repositories.size > 100) {
     throw new Error('V1 supports up to 100 students and 100 repositories per assignment.')
   }

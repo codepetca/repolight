@@ -18,6 +18,11 @@ export function AssignmentActions({
   const [submitting, setSubmitting] = useState(false)
 
   async function analyze() {
+    if (analysisRunId) {
+      router.push(`/runs/${analysisRunId}`)
+      return
+    }
+
     setError('')
     setSubmitting(true)
     try {

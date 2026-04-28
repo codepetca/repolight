@@ -39,6 +39,12 @@ Alex Lee,alex,https://github.com/org/repo-a
 Alex Lee,alex,https://github.com/org/repo-b`)).toThrow('one repository per student')
   })
 
+  it('rejects duplicate repository mappings across students', () => {
+    expect(() => parseClassroomAssignmentCsv(`student_name,github_login,repo_url
+Alex Lee,alex,https://github.com/org/shared-repo
+Sam Cruz,sam,https://github.com/org/shared-repo`)).toThrow('same repository')
+  })
+
   it('matches identity by commit emails when GitHub login is missing', () => {
     const parsed = parseClassroomAssignmentCsv(`student_name,commit_emails,repo_url
 Alex Lee,alex@example.com; alex@users.noreply.github.com,https://github.com/org/repo`)
