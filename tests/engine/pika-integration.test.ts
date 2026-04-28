@@ -3,9 +3,11 @@ import { createEmptySemanticBreakdown } from '@/lib/engine/categorize'
 import {
   buildPikaCreateRunInput,
   pikaCreateRunSchema,
-  serializePikaResultsCsv,
-  toPikaResults,
 } from '@/lib/integrations/pika'
+import {
+  serializeRepocatResultsCsv,
+  toRepocatResults,
+} from '@/lib/integrations/results'
 import type { RunResults } from '@/lib/runs/service'
 
 describe('pika integration mapping', () => {
@@ -55,7 +57,7 @@ describe('pika integration mapping', () => {
     expect(input.parsed.contributors[0]?.commitEmails).toContain('alex@example.com')
   })
 
-  it('maps Repocat metrics to Pika-friendly scores, feedback, and CSV', () => {
+  it('maps Repocat metrics to normalized contributor results, feedback, and CSV', () => {
     const results: RunResults = {
       run: {
         id: 'run-1',
@@ -138,22 +140,33 @@ describe('pika integration mapping', () => {
       ],
     }
 
-    const mapped = toPikaResults(results)
-    expect(mapped.results[0]).toMatchObject({
-      external_student_id: 'student-1',
-      score_completion: 90,
-      score_thinking: 82,
-      score_workflow: 70,
-      percent: 91,
-      letter: 'A',
+    const mapped = toRepocatResults(results)
+    expect(mapped.contributors[0]).toMatchObject({
+      contributor: {
+        id: 'student-1',
+        name: 'Alex, Lee',
+        github_login: 'alex',
+      },
+      component_scores: {
+        impact: 0.9,
+        quality: 0.82,
+        workflow: 0.7,
+        collaboration: 0,
+      },
+      grade_suggestion: {
+        percent: 91,
+        letter: 'A',
+      },
       achievement: 'Iteration Pro',
       evidence_summary: 'Add player movement',
     })
-    expect(mapped.results[0]?.feedback).toContain('7 matching commit')
+    expect(mapped.contributors[0]).not.toHaveProperty('score_completion')
+    expect(mapped.contributors[0]?.feedback).toContain('7 matching commit')
 
-    const csv = serializePikaResultsCsv(results)
-    expect(csv).toContain('score_completion')
+    const csv = serializeRepocatResultsCsv(results)
+    expect(csv).toContain('component_impact')
+    expect(csv).not.toContain('score_completion')
     expect(csv).toContain('"Alex, Lee"')
-    expect(csv).toContain(',90,82,70,91,A,')
+    expect(csv).toContain(',0.9,0.7,0.82,0,91,A,')
   })
 })
