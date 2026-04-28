@@ -36,6 +36,7 @@ export function buildClassroomWebhookUpdate(input: ClassroomWebhookInput): Class
   if (!repositoryFullName) return null
 
   if (input.eventName === 'push') {
+    if (booleanAt(input.payload, ['deleted'])) return null
     const occurredAt = stringAt(input.payload, ['head_commit', 'timestamp'])
     return {
       eventType: 'push',
@@ -138,6 +139,11 @@ function stringAt(value: unknown, path: string[]): string | null {
 function numberAt(value: unknown, path: string[]): number | null {
   const found = valueAt(value, path)
   return typeof found === 'number' ? found : null
+}
+
+function booleanAt(value: unknown, path: string[]): boolean {
+  const found = valueAt(value, path)
+  return found === true
 }
 
 function arrayAt(value: unknown, path: string[]): unknown[] {

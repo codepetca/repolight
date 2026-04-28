@@ -142,5 +142,18 @@ describe('buildClassroomWebhookUpdate', () => {
         },
       },
     })).toBeNull()
+
+    expect(buildClassroomWebhookUpdate({
+      eventName: 'push',
+      deliveryId: 'delivery-7',
+      payload: {
+        deleted: true,
+        ref: 'refs/heads/old-branch',
+        repository: {
+          full_name: 'yrdsb-peths/dodge-it-solo-alex',
+        },
+        commits: [],
+      },
+    })).toBeNull()
   })
 })
