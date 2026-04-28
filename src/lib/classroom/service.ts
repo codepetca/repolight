@@ -17,6 +17,13 @@ import type { RubricConfig } from '@/lib/engine/types'
 import { createRunFromParsed } from '@/lib/runs/service'
 import { buildAssignmentRunParsedInput } from '@/lib/classroom/analysis'
 import { parseClassroomAssignmentCsv } from '@/lib/classroom/csv'
+import { GitHubAppClient } from '@/lib/classroom/github-app'
+import {
+  buildProvisioningSettings,
+  provisionClassroomRepository,
+  type ProvisioningClient,
+  type ProvisioningRepositoryResult,
+} from '@/lib/classroom/provisioning'
 
 export interface ClassroomSummary {
   id: string
@@ -327,6 +334,81 @@ export async function createAnalysisRunForAssignment(
   return {
     assignment: await getClassroomAssignmentDetail(userId, classroom.id, assignment.id),
     run,
+  }
+}
+
+export async function provisionAssignmentRepositories(
+  userId: string,
+  classroomId: string,
+  assignmentId: string,
+  opts: { client?: ProvisioningClient } = {},
+): Promise<{
+  assignment: ClassroomAssignmentDetail
+  results: ProvisioningRepositoryResult[]
+}> {
+  const detail = await getClassroomAssignmentDetail(userId, classroomId, assignmentId)
+  const settings = buildProvisioningSettings({
+    githubOrg: detail.classroom.githubOrg,
+    templateRepoUrl: detail.templateRepoUrl,
+    repoVisibility: detail.repoVisibility,
+  })
+  const client = opts.client || new GitHubAppClient()
+  const database = getDb()
+  const now = new Date().toISOString()
+
+  await database.update(classroomAssignments)
+    .set({ status: 'provisioning', updatedAt: now })
+    .where(eq(classroomAssignments.id, assignmentId))
+
+  const results: ProvisioningRepositoryResult[] = []
+  for (const repository of detail.repositories) {
+    await database.update(classroomRepositories)
+      .set({
+        invitationStatus: 'provisioning',
+        lastError: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(classroomRepositories.id, repository.id))
+
+    const result = await provisionClassroomRepository({
+      client,
+      settings,
+      repository: {
+        id: repository.id,
+        name: repository.name,
+        branch: repository.branch,
+        student: {
+          githubLogin: repository.student.githubLogin,
+        },
+      },
+    })
+    results.push(result)
+
+    await database.update(classroomRepositories)
+      .set({
+        repoUrl: result.repoUrl || repository.repoUrl,
+        owner: settings.owner,
+        branch: result.branch,
+        repositoryKey: `${settings.owner.toLowerCase()}/${repository.name.toLowerCase()}#${result.branch}`,
+        invitationStatus: result.invitationStatus,
+        activityStatus: result.activityStatus,
+        lastError: result.error,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(classroomRepositories.id, repository.id))
+  }
+
+  const failed = results.some((result) => !result.ok)
+  await database.update(classroomAssignments)
+    .set({
+      status: failed ? 'provisioning_failed' : 'provisioned',
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(classroomAssignments.id, assignmentId))
+
+  return {
+    assignment: await getClassroomAssignmentDetail(userId, classroomId, assignmentId),
+    results,
   }
 }
 
