@@ -82,6 +82,8 @@ Then process and read results:
 GET  /api/v1/runs/:id
 POST /api/v1/runs/:id/process
 GET  /api/v1/runs/:id/results
+GET  /api/v1/runs/:id/summary
+GET  /api/v1/runs/:id/charts
 GET  /api/v1/runs/:id/export.csv
 ```
 
@@ -130,6 +132,40 @@ Results use Repocat's canonical normalized analysis shape. Component scores are 
   ]
 }
 ```
+
+`/summary` returns the same normalized signals with a simplified feedback comment for each contributor:
+
+```json
+{
+  "contributors": [
+    {
+      "contributor": {
+        "id": "student-123",
+        "name": "Alex Lee",
+        "github_login": "alex"
+      },
+      "achievement": "Iteration Pro",
+      "component_scores": {
+        "impact": 0.9,
+        "workflow": 0.7,
+        "quality": 0.82,
+        "collaboration": 0
+      },
+      "strengths": ["meaningful project impact", "visible iteration and refinement"],
+      "next_step": "Add commits that clearly show debugging, testing, cleanup, or refinement.",
+      "feedback_comment": "Repocat found 7 matching commit(s) across 4 active day(s) and 4 work session(s). Strongest evidence: meaningful project impact, visible iteration and refinement. Achievement: Iteration Pro. Next step: Add commits that clearly show debugging, testing, cleanup, or refinement. Confidence: 80%."
+    }
+  ]
+}
+```
+
+`/charts` returns chart-ready data for common views:
+
+- `impact_workflow_scatter`
+- `component_comparison`
+- `semantic_breakdown_stacked`
+- `timelines`
+- `cohort_benchmarks`
 
 For Pika, the recommended mapping is:
 

@@ -63,10 +63,138 @@ export interface RepocatContributorResult {
   timeline: TimelinePoint[]
 }
 
+export interface RepocatContributorSummary {
+  contributor: RepocatContributorResult['contributor']
+  achievement: string
+  component_scores: NormalizedComponentScores
+  grade_suggestion: RepocatContributorResult['grade_suggestion']
+  activity_summary: {
+    commit_count: number
+    active_days: number
+    session_count: number
+    burst_ratio: number
+    weighted_contribution: number
+  }
+  strengths: string[]
+  next_step: string
+  feedback_comment: string
+  confidence: {
+    value: number
+    warnings: RunWarning[]
+  }
+}
+
+export interface RepocatChartData {
+  run: RunResults['run']
+  charts: {
+    impact_workflow_scatter: Array<{
+      contributor_id: string
+      name: string
+      github_login: string | null
+      impact: number
+      workflow: number
+      quality: number
+      grade_letter: string
+      grade_percent: number
+      confidence: number
+      commit_count: number
+      weighted_contribution: number
+    }>
+    component_comparison: Array<{
+      contributor_id: string
+      name: string
+      impact: number
+      workflow: number
+      quality: number
+      collaboration: number
+    }>
+    semantic_breakdown_stacked: Array<{
+      contributor_id: string
+      name: string
+      breakdown: SemanticBreakdown
+    }>
+    timelines: Array<{
+      contributor_id: string
+      name: string
+      points: TimelinePoint[]
+    }>
+    cohort_benchmarks: {
+      impact: Benchmark
+      workflow: Benchmark
+      quality: Benchmark
+      weighted_contribution: Benchmark
+      active_days: Benchmark
+      commits: Benchmark
+    }
+  }
+}
+
+interface Benchmark {
+  min: number
+  median: number
+  max: number
+}
+
 export function toRepocatResults(results: RunResults): { run: RunResults['run']; contributors: RepocatContributorResult[] } {
   return {
     run: results.run,
     contributors: results.contributors.map(({ metrics, grade }) => toRepocatContributorResult(metrics, grade)),
+  }
+}
+
+export function toRepocatSummary(results: RunResults): { run: RunResults['run']; contributors: RepocatContributorSummary[] } {
+  const includeCollaboration = results.run.rubric.componentWeights.collaboration > 0
+  return {
+    run: results.run,
+    contributors: toRepocatResults(results).contributors.map((result) => toContributorSummary(result, includeCollaboration)),
+  }
+}
+
+export function toRepocatCharts(results: RunResults): RepocatChartData {
+  const contributors = toRepocatResults(results).contributors
+  return {
+    run: results.run,
+    charts: {
+      impact_workflow_scatter: contributors.map((result) => ({
+        contributor_id: result.contributor.id,
+        name: result.contributor.name,
+        github_login: result.contributor.github_login,
+        impact: result.component_scores.impact,
+        workflow: result.component_scores.workflow,
+        quality: result.component_scores.quality,
+        grade_letter: result.grade_suggestion.letter,
+        grade_percent: result.grade_suggestion.percent,
+        confidence: result.confidence.value,
+        commit_count: result.activity.commit_count,
+        weighted_contribution: result.contribution.weighted_contribution,
+      })),
+      component_comparison: contributors.map((result) => ({
+        contributor_id: result.contributor.id,
+        name: result.contributor.name,
+        impact: result.component_scores.impact,
+        workflow: result.component_scores.workflow,
+        quality: result.component_scores.quality,
+        collaboration: result.component_scores.collaboration,
+      })),
+      semantic_breakdown_stacked: contributors.map((result) => ({
+        contributor_id: result.contributor.id,
+        name: result.contributor.name,
+        breakdown: result.contribution.semantic_breakdown,
+      })),
+      timelines: contributors.map((result) => ({
+        contributor_id: result.contributor.id,
+        name: result.contributor.name,
+        points: result.timeline,
+      })),
+      cohort_benchmarks: {
+        impact: benchmark(contributors.map((result) => result.component_scores.impact)),
+        workflow: benchmark(contributors.map((result) => result.component_scores.workflow)),
+        quality: benchmark(contributors.map((result) => result.component_scores.quality)),
+        weighted_contribution: benchmark(contributors.map((result) => result.contribution.weighted_contribution)),
+        active_days: benchmark(contributors.map((result) => result.activity.active_days)),
+        commits: benchmark(contributors.map((result) => result.activity.commit_count)),
+      },
+    },
   }
 }
 
@@ -130,6 +258,28 @@ export function serializeRepocatResultsCsv(results: RunResults): string {
   return [header, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')
 }
 
+function toContributorSummary(result: RepocatContributorResult, includeCollaboration: boolean): RepocatContributorSummary {
+  const strengths = strengthsFor(result)
+  const nextStep = nextStepFor(result, includeCollaboration)
+  return {
+    contributor: result.contributor,
+    achievement: result.achievement,
+    component_scores: result.component_scores,
+    grade_suggestion: result.grade_suggestion,
+    activity_summary: {
+      commit_count: result.activity.commit_count,
+      active_days: result.activity.active_days,
+      session_count: result.activity.session_count,
+      burst_ratio: result.activity.burst_ratio,
+      weighted_contribution: result.contribution.weighted_contribution,
+    },
+    strengths,
+    next_step: nextStep,
+    feedback_comment: feedbackCommentFor(result, strengths, nextStep),
+    confidence: result.confidence,
+  }
+}
+
 function toRepocatContributorResult(metrics: ContributorMetrics, grade: ContributorGrade): RepocatContributorResult {
   return {
     contributor: {
@@ -185,6 +335,75 @@ function toRepocatContributorResult(metrics: ContributorMetrics, grade: Contribu
   }
 }
 
+function strengthsFor(result: RepocatContributorResult): string[] {
+  const strengths: string[] = []
+  if (result.component_scores.impact >= 0.75) {
+    strengths.push('meaningful project impact')
+  }
+  if (result.component_scores.workflow >= 0.65) {
+    strengths.push('steady workflow across sessions')
+  }
+  if (result.component_scores.quality >= 0.65) {
+    strengths.push('visible iteration and refinement')
+  }
+  if (result.activity.active_days >= 3) {
+    strengths.push(`${result.activity.active_days} active work days`)
+  }
+  if (result.activity.session_count >= 4) {
+    strengths.push(`${result.activity.session_count} separate work sessions`)
+  }
+  if (strengths.length === 0 && result.activity.commit_count > 0) {
+    strengths.push('visible committed progress')
+  }
+  return strengths
+}
+
+function nextStepFor(result: RepocatContributorResult, includeCollaboration: boolean): string {
+  const entries = componentEntriesFromScores(result.component_scores)
+    .filter(([component]) => includeCollaboration || component !== 'collaboration')
+  const lowest = entries
+    .sort((left, right) => left[1] - right[1])[0]?.[0] || 'workflow'
+  if (result.activity.commit_count === 0) {
+    return 'Make sure project work is committed from the GitHub account or email connected to the assignment.'
+  }
+  if (lowest === 'impact') {
+    return 'Add a few more commits that show meaningful feature work or bug fixes.'
+  }
+  if (lowest === 'quality') {
+    return 'Add commits that clearly show debugging, testing, cleanup, or refinement.'
+  }
+  if (lowest === 'collaboration') {
+    return 'For collaborative assignments, use pull requests or reviews so collaboration evidence is visible.'
+  }
+  return 'Spread progress over more days or work sessions so the development process is easier to see.'
+}
+
+function feedbackCommentFor(
+  result: RepocatContributorResult,
+  strengths: string[],
+  nextStep: string,
+): string {
+  if (result.activity.commit_count === 0) {
+    return [
+      'Repocat did not find matching commits for this contributor in the analysis window.',
+      nextStep,
+      `Confidence: ${Math.round(result.confidence.value * 100)}%.`,
+    ].join(' ')
+  }
+
+  const strengthText = strengths.length > 0
+    ? `Strongest evidence: ${strengths.join(', ')}.`
+    : 'Strongest evidence: visible committed progress.'
+
+  return [
+    `Repocat found ${result.activity.commit_count} matching commit(s) across ${result.activity.active_days} active day(s) and ${result.activity.session_count} work session(s).`,
+    strengthText,
+    `Achievement: ${result.achievement}.`,
+    `Next step: ${nextStep}`,
+    `Confidence: ${Math.round(result.confidence.value * 100)}%.`,
+  ].join(' ')
+}
+
 function achievementFor(metrics: ContributorMetrics): string {
   if (metrics.commitCount === 0) return 'Ready to Start'
   if (metrics.qualityScore >= 0.75) return 'Iteration Pro'
@@ -224,6 +443,15 @@ function componentEntries(metrics: ContributorMetrics): Array<['impact' | 'workf
   ]
 }
 
+function componentEntriesFromScores(scores: NormalizedComponentScores): Array<['impact' | 'workflow' | 'quality' | 'collaboration', number]> {
+  return [
+    ['impact', scores.impact],
+    ['workflow', scores.workflow],
+    ['quality', scores.quality],
+    ['collaboration', scores.collaboration],
+  ]
+}
+
 function strengthMessage(component: 'impact' | 'workflow' | 'quality'): string {
   if (component === 'impact') return 'Your strongest evidence is the amount of meaningful project work you produced.'
   if (component === 'quality') return 'Your strongest evidence is iteration: debugging, refactoring, tests, or improvements.'
@@ -246,6 +474,24 @@ function evidenceSummaryFor(metrics: ContributorMetrics): string {
 
 function normalizedScore(value: number): number {
   return Math.round(Math.max(0, Math.min(1, value)) * 1000) / 1000
+}
+
+function benchmark(values: number[]): Benchmark {
+  if (values.length === 0) return { min: 0, median: 0, max: 0 }
+  const sorted = [...values].sort((left, right) => left - right)
+  const mid = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0
+    ? ((sorted[mid - 1] || 0) + (sorted[mid] || 0)) / 2
+    : sorted[mid] || 0
+  return {
+    min: normalizedNumber(sorted[0] || 0),
+    median: normalizedNumber(median),
+    max: normalizedNumber(sorted[sorted.length - 1] || 0),
+  }
+}
+
+function normalizedNumber(value: number): number {
+  return Math.round(value * 1000) / 1000
 }
 
 function escapeCsvCell(value: string): string {

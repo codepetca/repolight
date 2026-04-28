@@ -6,7 +6,9 @@ import {
 } from '@/lib/integrations/pika'
 import {
   serializeRepocatResultsCsv,
+  toRepocatCharts,
   toRepocatResults,
+  toRepocatSummary,
 } from '@/lib/integrations/results'
 import type { RunResults } from '@/lib/runs/service'
 
@@ -43,6 +45,8 @@ describe('pika integration mapping', () => {
     expect(input.externalAssignmentId).toBe('assignment-1')
     expect(input.externalClassroomId).toBe('class-1')
     expect(input.externalRunKey).toContain('assignment-1')
+    expect(input.externalRunKey?.length).toBeLessThan(80)
+    expect(input.externalRunKey).not.toContain('dodge-it-solo-alex')
     expect(input.parsed.repositories).toHaveLength(2)
     expect(input.parsed.contributors).toHaveLength(1)
     expect(input.parsed.contributors[0]).toMatchObject({
@@ -168,5 +172,114 @@ describe('pika integration mapping', () => {
     expect(csv).not.toContain('score_completion')
     expect(csv).toContain('"Alex, Lee"')
     expect(csv).toContain(',0.9,0.7,0.82,0,91,A,')
+  })
+
+  it('builds simplified summary comments and chart-ready data', () => {
+    const results: RunResults = {
+      run: {
+        id: 'run-1',
+        name: 'Run',
+        status: 'completed',
+        externalSystem: 'pika',
+        externalRunKey: 'key',
+        externalAssignmentId: 'assignment-1',
+        externalClassroomId: 'class-1',
+        externalMetadata: {},
+        startAt: '2026-04-01T00:00:00.000Z',
+        endAt: '2026-04-27T23:59:59.000Z',
+        timezone: 'America/Toronto',
+        rubric: {
+          version: 'v1',
+          componentWeights: { impact: 0.45, workflow: 0.35, quality: 0.2, collaboration: 0 },
+          semanticWeights: {
+            feature: 1,
+            bugfix: 0.9,
+            test: 0.8,
+            refactor: 0.7,
+            docs: 0.4,
+            styling: 0.4,
+            config: 0.2,
+            generated: 0,
+          },
+          contributionScale: { churnDivisor: 40, minVolume: 0.25, maxVolume: 3 },
+          curve: { relativeWeight: 0.35, floorPercent: 55, medianPercent: 80, excellentPercent: 96, capPercentile: 0.9 },
+          gradeBands: [
+            { label: 'A', minPercent: 90 },
+            { label: 'B', minPercent: 80 },
+            { label: 'C', minPercent: 70 },
+            { label: 'D', minPercent: 60 },
+            { label: 'F', minPercent: 0 },
+          ],
+        },
+        warnings: [],
+        totalRepositories: 1,
+        processedRepositories: 1,
+        failedRepositories: 0,
+        createdAt: '2026-04-27T00:00:00.000Z',
+        completedAt: '2026-04-27T00:01:00.000Z',
+      },
+      contributors: [
+        {
+          metrics: {
+            contributorId: 'student-1',
+            name: 'Alex Lee',
+            githubLogin: 'alex',
+            commitCount: 7,
+            activeDays: 4,
+            sessionCount: 5,
+            burstRatio: 0.1,
+            weightedContribution: 9,
+            relativeContributionShare: 1,
+            spreadScore: 0.6,
+            iterationScore: 0.8,
+            semanticBreakdown: { ...createEmptySemanticBreakdown(), feature: 5, test: 2 },
+            timeline: [
+              { date: '2026-04-02', weightedContribution: 3, commitCount: 2 },
+              { date: '2026-04-05', weightedContribution: 6, commitCount: 5 },
+            ],
+            evidence: [
+              { type: 'commit', id: 'abc', repositoryKey: 'github:org/repo', title: 'Add player movement' },
+            ],
+            areas: ['src'],
+            reviewActivityCount: 0,
+            impactScore: 0.9,
+            workflowScore: 0.72,
+            qualityScore: 0.82,
+            collaborationScore: 0,
+            warnings: [],
+            confidence: 0.8,
+          },
+          grade: {
+            contributorId: 'student-1',
+            rawScore: 0.82,
+            cohortRelativeScore: 1,
+            absolutePercent: 91,
+            letterGrade: 'A',
+          },
+        },
+      ],
+    }
+
+    const summary = toRepocatSummary(results)
+    expect(summary.contributors[0]).toMatchObject({
+      contributor: { id: 'student-1' },
+      achievement: 'Iteration Pro',
+      component_scores: { impact: 0.9, workflow: 0.72, quality: 0.82 },
+      activity_summary: { commit_count: 7, active_days: 4, session_count: 5 },
+    })
+    expect(summary.contributors[0]?.feedback_comment).toContain('Repocat found 7 matching commit')
+    expect(summary.contributors[0]?.feedback_comment).toContain('Achievement: Iteration Pro')
+    expect(summary.contributors[0]?.next_step).toContain('Spread progress')
+
+    const charts = toRepocatCharts(results)
+    expect(charts.charts.impact_workflow_scatter[0]).toMatchObject({
+      contributor_id: 'student-1',
+      impact: 0.9,
+      workflow: 0.72,
+      grade_letter: 'A',
+    })
+    expect(charts.charts.semantic_breakdown_stacked[0]?.breakdown.feature).toBe(5)
+    expect(charts.charts.timelines[0]?.points).toHaveLength(2)
+    expect(charts.charts.cohort_benchmarks.impact).toEqual({ min: 0.9, median: 0.9, max: 0.9 })
   })
 })
