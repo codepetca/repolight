@@ -107,8 +107,94 @@ export const contributorResults = pgTable('contributor_results', {
   uniqResult: uniqueIndex('uniq_contributor_result').on(table.runId, table.contributorId),
 }))
 
+export const classrooms = pgTable('classrooms', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  term: text('term'),
+  githubOrg: text('github_org'),
+  defaultRepoPrefix: text('default_repo_prefix'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+})
+
+export const classroomStudents = pgTable('classroom_students', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  classroomId: uuid('classroom_id').notNull().references(() => classrooms.id, { onDelete: 'cascade' }),
+  externalStudentId: text('external_student_id'),
+  name: text('name').notNull(),
+  email: text('email'),
+  githubLogin: text('github_login'),
+  commitEmails: jsonb('commit_emails').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  groupName: text('group_name'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, (table) => ({
+  uniqExternalStudent: uniqueIndex('uniq_classroom_student_external').on(table.classroomId, table.externalStudentId),
+  uniqGithubLogin: uniqueIndex('uniq_classroom_student_github').on(table.classroomId, table.githubLogin),
+}))
+
+export const classroomAssignments = pgTable('classroom_assignments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  classroomId: uuid('classroom_id').notNull().references(() => classrooms.id, { onDelete: 'cascade' }),
+  analysisRunId: uuid('analysis_run_id').references(() => analysisRuns.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  status: text('status').notNull().default('draft'),
+  templateRepoUrl: text('template_repo_url'),
+  repoPrefix: text('repo_prefix'),
+  repoVisibility: text('repo_visibility').notNull().default('private'),
+  startAt: timestamp('start_at', { withTimezone: true, mode: 'string' }).notNull(),
+  dueAt: timestamp('due_at', { withTimezone: true, mode: 'string' }).notNull(),
+  timezone: text('timezone').notNull().default('America/Toronto'),
+  rubricJson: jsonb('rubric_json').$type<RubricConfig>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+})
+
+export const classroomRepositories = pgTable('classroom_repositories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  assignmentId: uuid('assignment_id').notNull().references(() => classroomAssignments.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').notNull().references(() => classroomStudents.id, { onDelete: 'cascade' }),
+  repositoryKey: text('repository_key').notNull(),
+  repoUrl: text('repo_url').notNull(),
+  owner: text('owner').notNull(),
+  name: text('name').notNull(),
+  branch: text('branch').notNull().default('main'),
+  invitationStatus: text('invitation_status').notNull().default('manual'),
+  activityStatus: text('activity_status').notNull().default('not_started'),
+  successfulPushCount: integer('successful_push_count').notNull().default(0),
+  firstPushAt: timestamp('first_push_at', { withTimezone: true, mode: 'string' }),
+  lastPushAt: timestamp('last_push_at', { withTimezone: true, mode: 'string' }),
+  lastWebhookAt: timestamp('last_webhook_at', { withTimezone: true, mode: 'string' }),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, (table) => ({
+  uniqAssignmentStudent: uniqueIndex('uniq_classroom_repository_student').on(table.assignmentId, table.studentId),
+  uniqAssignmentRepository: uniqueIndex('uniq_classroom_repository_key').on(table.assignmentId, table.repositoryKey),
+}))
+
+export const classroomActivityEvents = pgTable('classroom_activity_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  assignmentId: uuid('assignment_id').notNull().references(() => classroomAssignments.id, { onDelete: 'cascade' }),
+  repositoryId: uuid('repository_id').references(() => classroomRepositories.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id').references(() => classroomStudents.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  externalId: text('external_id'),
+  payloadJson: jsonb('payload_json').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, (table) => ({
+  uniqClassroomActivityEvent: uniqueIndex('uniq_classroom_activity_event').on(table.assignmentId, table.eventType, table.externalId),
+}))
+
 export type User = typeof users.$inferSelect
 export type AnalysisRun = typeof analysisRuns.$inferSelect
 export type RunContributor = typeof runContributors.$inferSelect
 export type RunRepository = typeof runRepositories.$inferSelect
 export type ContributorResult = typeof contributorResults.$inferSelect
+export type Classroom = typeof classrooms.$inferSelect
+export type ClassroomStudent = typeof classroomStudents.$inferSelect
+export type ClassroomAssignment = typeof classroomAssignments.$inferSelect
+export type ClassroomRepository = typeof classroomRepositories.$inferSelect
