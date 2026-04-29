@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Download, Play, RefreshCw, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import { Award, Download, Play, RefreshCw, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import type { RunDetail, RunResults } from '@/lib/runs/service'
 import type { ContributorMetrics, RubricConfig, SemanticBreakdown } from '@/lib/engine/types'
+import { toRepocatSummary, type RepocatContributorSummary } from '@/lib/integrations/results'
 
 type ResultRow = RunResults['contributors'][number]
 
@@ -24,6 +25,12 @@ export function RunWorkspace({
   const selected = useMemo(() => {
     return results.contributors.find((item) => item.metrics.contributorId === selectedId) || results.contributors[0] || null
   }, [results.contributors, selectedId])
+
+  const summariesByContributor = useMemo(() => {
+    return new Map(toRepocatSummary(results).contributors.map((summary) => [summary.contributor.id, summary]))
+  }, [results])
+
+  const selectedFeedback = selected ? summariesByContributor.get(selected.metrics.contributorId) || null : null
 
   const progress = run.totalRepositories === 0
     ? 0
@@ -155,7 +162,7 @@ export function RunWorkspace({
               <span className="badge">relative + rubric mapped</span>
             </div>
             <div className="panel-body">
-              <ResultsTable rows={results.contributors} selectedId={selected?.metrics.contributorId || ''} onSelect={setSelectedId} />
+              <ResultsTable rows={results.contributors} summariesByContributor={summariesByContributor} selectedId={selected?.metrics.contributorId || ''} onSelect={setSelectedId} />
             </div>
           </section>
 
@@ -182,6 +189,7 @@ export function RunWorkspace({
         </div>
 
         <aside className="stack">
+          {selectedFeedback && <FeedbackSummary summary={selectedFeedback} />}
           <RubricEditor runId={run.id} rubric={run.rubric} onUpdated={refresh} />
           {selected && (
             <section className="panel">
@@ -244,10 +252,12 @@ function RepositoryList({ repositories }: { repositories: RunDetail['repositorie
 
 function ResultsTable({
   rows,
+  summariesByContributor,
   selectedId,
   onSelect,
 }: {
   rows: ResultRow[]
+  summariesByContributor: Map<string, RepocatContributorSummary>
   selectedId: string
   onSelect: (id: string) => void
 }) {
@@ -260,6 +270,7 @@ function ResultsTable({
           <tr>
             <th>Grade</th>
             <th>Contributor</th>
+            <th>Achievement</th>
             <th>Percent</th>
             <th>Raw</th>
             <th>Commits</th>
@@ -277,6 +288,7 @@ function ResultsTable({
                 <strong>{row.metrics.name}</strong>
                 <div className="meta-row">{row.metrics.githubLogin ? `@${row.metrics.githubLogin}` : row.metrics.contributorId}</div>
               </td>
+              <td><span className="badge">{summariesByContributor.get(row.metrics.contributorId)?.achievement || 'Builder'}</span></td>
               <td>{row.grade.absolutePercent}%</td>
               <td>{Math.round(row.grade.rawScore * 100)}%</td>
               <td>{row.metrics.commitCount}</td>
@@ -289,6 +301,37 @@ function ResultsTable({
         </tbody>
       </table>
     </div>
+  )
+}
+
+function FeedbackSummary({ summary }: { summary: RepocatContributorSummary }) {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2 className="panel-title">Feedback</h2>
+        <span className="badge achievement-badge">
+          <Award size={14} aria-hidden="true" />
+          {summary.achievement}
+        </span>
+      </div>
+      <div className="panel-body stack">
+        <p className="feedback-comment">{summary.feedback_comment}</p>
+        {summary.strengths.length > 0 && (
+          <div className="field">
+            <label>Strengths</label>
+            <div className="meta-row">
+              {summary.strengths.map((strength) => (
+                <span className="badge completed" key={strength}>{strength}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="field">
+          <label>Next Step</label>
+          <div className="notice">{summary.next_step}</div>
+        </div>
+      </div>
+    </section>
   )
 }
 

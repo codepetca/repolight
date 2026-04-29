@@ -311,6 +311,7 @@ button:disabled {
 .badge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
@@ -333,6 +334,18 @@ button:disabled {
 .badge.queued {
   background: #fff1d2;
   color: var(--warning);
+}
+
+.achievement-badge {
+  background: #e9e3f6;
+  color: var(--violet);
+}
+
+.feedback-comment {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .progress {
