@@ -2,7 +2,20 @@
 
 Repocat is a small standalone Next.js app for classroom-shaped public GitHub repository contribution analysis. The deterministic analyzer lives in `src/lib/engine`, while Repocat Classroom adds classes, student repo mappings, assignment dashboards, and analysis handoff for tools such as Pika.
 
-## Stack
+## Public-repository recovery and report contract
+
+The current revival phase uses public repositories and preserves the existing app and v1 API. GitHub App setup is deferred. See [recovery status](docs/RECOVERY.md), [development commands](docs/DEVELOPMENT.md), [report contract v2](docs/REPORT-CONTRACT.md) and [revival plan](docs/REVIVAL-PLAN.md).
+
+```sh
+npm ci
+npm test
+npm run typecheck
+npm run report:sample --silent
+```
+
+The sample emits a fictional report with deterministic commit count, density, scheduled-day coverage, busiest-day share, timeline and file heatmap evidence. No database, token, GitHub App or AI provider is required. The schema reserves evidence-linked interpretation/feedback but does not generate it yet. The legacy grading scores described below remain v1 behavior and are not included in the new report contract. Existing deployment blockers are documented in the recovery status.
+
+## Existing stack
 
 - Next.js App Router
 - Neon Postgres
