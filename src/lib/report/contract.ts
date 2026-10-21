@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { round } from '@/lib/engine/time'
 
 export const REPORT_VERSION = '2.0' as const
 export const METRICS_VERSION = '2.0.0' as const
@@ -47,6 +48,22 @@ const metricSchema = z.object({
   if ((value.status === 'unavailable') !== (value.value === null)) ctx.addIssue({ code: 'custom', message: 'Unavailable metrics must have null values; measured metrics need a value.' })
   if (value.status !== 'available' && value.reason === null) ctx.addIssue({ code: 'custom', message: 'Incomplete metrics need an explanation.' })
 })
+const countMetricSchema = metricSchema.superRefine((metric, ctx) => {
+  if (metric.value !== null && (!Number.isSafeInteger(metric.value) || metric.value !== metric.numerator || metric.denominator !== null)) {
+    ctx.addIssue({ code: 'custom', message: 'Commit counts must be whole counts matching their numerator, without a denominator.' })
+  }
+})
+const fractionMetricSchema = metricSchema.superRefine((metric, ctx) => {
+  if (metric.value === null) return
+  if (metric.numerator === null || metric.denominator === null || metric.denominator <= 0 || round(metric.numerator / metric.denominator) !== metric.value) {
+    ctx.addIssue({ code: 'custom', message: 'Measured fractions require a positive denominator and a consistent rounded numerator/denominator value.' })
+  }
+})
+const shareMetricSchema = fractionMetricSchema.superRefine((metric, ctx) => {
+  if (metric.value !== null && (metric.value > 1 || metric.numerator! > metric.denominator!)) {
+    ctx.addIssue({ code: 'custom', message: 'Shares must be between zero and one.' })
+  }
+})
 const reportFileSchema = z.object({ path: text, status: text, additions: count, deletions: count }).strict()
 const reportCommitSchema = z.object({
   sha, message: z.string(), authoredAt: instant.nullable(), githubLogin: z.string().nullable(), url: repositoryUrl.or(z.string().regex(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/commit\/[a-f0-9]{40}$/)),
@@ -66,7 +83,7 @@ export const repositoryReportSchema = z.object({
   baseline: z.object({ status: z.enum(['not_supplied', 'applied', 'unavailable']), reference: text.nullable() }).strict(),
   coverage: z.object({ history: collectionStatusSchema, files: collectionStatusSchema, notes: z.array(text) }).strict(),
   attribution: z.object({ status: z.enum(['matched', 'not_configured']), unmatchedCommitCount: count }).strict(),
-  metrics: z.object({ studentCommits: metricSchema, commitDensity: metricSchema, scheduledDayCoverage: metricSchema, busiestDayShare: metricSchema }).strict(),
+  metrics: z.object({ studentCommits: countMetricSchema, commitDensity: fractionMetricSchema, scheduledDayCoverage: shareMetricSchema, busiestDayShare: shareMetricSchema }).strict(),
   activity: z.object({ undatedCommitCount: count, outsideScheduleCommitCount: count.nullable() }).strict(),
   commits: z.array(reportCommitSchema),
   timeline: z.array(z.object({ date, commitShas: z.array(sha), commitCount: count }).strict()),

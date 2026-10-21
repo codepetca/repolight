@@ -45,7 +45,7 @@ export function buildRepositoryReport(rawInput: unknown): RepositoryReport {
     const hasFiles = input.coverage.files !== 'unavailable' && event.files !== undefined
     if (!hasFiles) missingFileEvidence = true
     const files = hasFiles ? event.files!.filter(file => !excludedPath(file.filename)).map(file => ({ path: file.filename, status: file.status, additions: file.additions, deletions: file.deletions })) : []
-    if (hasFiles && event.files!.length > 0 && files.length === 0) continue
+    if (input.coverage.files === 'complete' && hasFiles && event.files!.length > 0 && files.length === 0) continue
     if (!event.authoredAt) undatedCommitCount++
     if (new Set(files.map(file => file.path)).size !== files.length) throw new Error('Duplicate file evidence in a commit.')
     commits.push({
@@ -74,6 +74,8 @@ export function buildRepositoryReport(rawInput: unknown): RepositoryReport {
   const scheduleAvailable = schedule !== null && schedule.length > 0
   const scheduledActiveDays = timeline.filter(point => scheduleSet.has(point.date)).length
   const busiestCount = Math.max(0, ...timeline.map(point => point.commitCount))
+  const noDatedEvidence = n > 0 && timeline.length === 0
+  const distributionReason = noDatedEvidence ? 'No dated commits are available to determine a day distribution.' : null
   if (undatedCommitCount) notes.push(`${undatedCommitCount} matched commit(s) have no author date; period membership and day distribution cannot be fully verified.`)
   if (missingFileEvidence) notes.push('File-change evidence is incomplete; absent heatmap cells must not be interpreted as zero changes.')
   const report: RepositoryReport = {
@@ -85,8 +87,8 @@ export function buildRepositoryReport(rawInput: unknown): RepositoryReport {
     metrics: {
       studentCommits: metric(n, n, null, undatedCommitCount && countStatus === 'available' ? 'partial' : countStatus),
       commitDensity: metric(scheduleAvailable ? round(n / schedule!.length) : null, n, schedule?.length ?? null, scheduleAvailable ? timeStatus : 'unavailable', scheduleAvailable ? null : 'Scheduled project dates are missing or empty.'),
-      scheduledDayCoverage: metric(scheduleAvailable ? round(scheduledActiveDays / schedule!.length) : null, scheduledActiveDays, schedule?.length ?? null, scheduleAvailable ? timeStatus : 'unavailable', scheduleAvailable ? null : 'Scheduled project dates are missing or empty.'),
-      busiestDayShare: metric(n ? round(busiestCount / n) : null, busiestCount, n, n ? timeStatus : 'unavailable', n ? null : 'No attributable commits are available.'),
+      scheduledDayCoverage: metric(scheduleAvailable ? round(scheduledActiveDays / schedule!.length) : null, scheduledActiveDays, schedule?.length ?? null, scheduleAvailable && !noDatedEvidence ? timeStatus : 'unavailable', scheduleAvailable ? distributionReason : 'Scheduled project dates are missing or empty.'),
+      busiestDayShare: metric(n ? round(busiestCount / n) : null, busiestCount, n, n && !noDatedEvidence ? timeStatus : 'unavailable', n ? distributionReason : 'No attributable commits are available.'),
     },
     activity: { undatedCommitCount, outsideScheduleCommitCount: historyUnavailable || schedule === null ? null : timeline.filter(point => !scheduleSet.has(point.date)).reduce((sum, point) => sum + point.commitCount, 0) },
     commits, timeline,

@@ -146,4 +146,38 @@ describe('report contract v2', () => {
     interpretation.observations[0].evidence[0].path = 'Missing.java'
     expect(repositoryReportSchema.safeParse({ ...report, interpretation }).success).toBe(false)
   })
+
+  it('retains uncertain mixed commits when a partial file list only shows excluded files', () => {
+    const input = skyHopInput()
+    input.events = [{ ...input.events[0], files: [{ filename: 'generated/Output.java', status: 'added', additions: 100, deletions: 0 }] }]
+    input.exclusions.pathPrefixes = ['generated/']
+    const report = buildRepositoryReport({ ...input, coverage: { history: 'complete', files: 'partial', notes: ['File list truncated'] } })
+    expect(report.metrics.studentCommits).toMatchObject({ value: 1, status: 'partial' })
+    expect(report.commits).toHaveLength(1)
+    expect(report.heatmap.status).toBe('partial')
+  })
+
+  it('does not manufacture a day distribution when every commit lacks a date', () => {
+    const input = skyHopInput()
+    input.events = [{ ...input.events[0], authoredAt: undefined }]
+    const report = buildRepositoryReport(input)
+    expect(report.metrics.studentCommits).toMatchObject({ value: 1, status: 'partial' })
+    expect(report.metrics.busiestDayShare).toMatchObject({ value: null, status: 'unavailable' })
+    expect(report.metrics.scheduledDayCoverage).toMatchObject({ value: null, status: 'unavailable' })
+  })
+
+  it('rejects impossible serialized ratios and inconsistent numerators/denominators', () => {
+    const report = buildRepositoryReport(skyHopInput())
+    const invalidMetrics = [
+      ['scheduledDayCoverage', { status: 'available', value: 2, numerator: 18, denominator: 9, reason: null }],
+      ['busiestDayShare', { status: 'available', value: 1.1, numerator: 11, denominator: 10, reason: null }],
+      ['scheduledDayCoverage', { status: 'available', value: 0, numerator: 0, denominator: 0, reason: null }],
+      ['scheduledDayCoverage', { status: 'partial', value: 0.5, numerator: 6, denominator: 9, reason: 'Partial evidence' }],
+      ['commitDensity', { status: 'available', value: 1.5, numerator: 12, denominator: 9, reason: null }],
+      ['studentCommits', { status: 'available', value: 1.5, numerator: 1, denominator: null, reason: null }],
+    ] as const
+    for (const [key, value] of invalidMetrics) {
+      expect(repositoryReportSchema.safeParse({ ...report, metrics: { ...report.metrics, [key]: value } }).success).toBe(false)
+    }
+  })
 })

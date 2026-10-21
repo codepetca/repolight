@@ -33,7 +33,7 @@ No new repository privileges are needed for this phase. Inputs using synthetic f
 
 ## Eligibility and metric definitions
 
-The builder counts each included commit SHA once, filters known excluded commits/bots and dated records outside the half-open period, matches the declared student identity and removes excluded file changes. A known generated-only commit is excluded. A mixed commit retains its included source changes. Changes to supplied files remain unless the caller's explicit baseline policy excludes that specific evidence.
+The builder counts each included commit SHA once, filters known excluded commits/bots and dated records outside the half-open period, matches the declared student identity and removes excluded file changes. A generated-only commit is excluded only when its file list is known complete. If a partial list shows only excluded files, retain the commit with partial status because omitted files could contain eligible changes. A mixed commit retains its included source changes. Changes to supplied files remain unless the caller's explicit baseline policy excludes that specific evidence.
 
 Missing author dates cannot prove period membership. Observed undated commits remain visible, with partial metric status and a note; they do not acquire invented timeline dates. No effort, time-worked or attendance inference follows from these counts.
 
@@ -44,7 +44,7 @@ Missing author dates cannot prove period membership. Observed undated commits re
 | `metrics.scheduledDayCoverage` | Scheduled dates with at least one included dated commit / supplied scheduled dates |
 | `metrics.busiestDayShare` | Largest local-day included commit count / included commit count |
 
-Each metric contains `value`, `numerator`, `denominator`, `status` and `reason`. Fractions use 0–1 units; density uses commits per project day. Values are rounded to four decimals; the UI can display 1.3 or 67%. A metric with status `unavailable` has a null value. Partial values describe the observed subset and require an explanation; they are not exact totals or confidence probabilities.
+Each metric contains `value`, `numerator`, `denominator`, `status` and `reason`. Coverage and busiest-day shares use 0–1 units; density uses commits per project day and may exceed one. Measured ratios require positive denominators and numerator/denominator consistency; commit counts must be whole counts. Values are rounded to four decimals; the UI can display 1.3 or 67%. A metric with status `unavailable` has a null value. Partial values describe incomplete evidence or uncertain exclusions and require an explanation; they are not exact totals, guaranteed lower bounds or confidence probabilities. When commits exist but every author date is missing, day coverage and busiest-day share are unavailable rather than zero.
 
 Commits outside the schedule but inside the period still contribute to total count, density and busiest-day share; `activity.outsideScheduleCommitCount` identifies them. Scheduled-day coverage only counts supplied dates. A verified empty, fully collected period has count/density/coverage zero and undefined busiest-day share. Unknown collection or identity does not produce a false zero count. A missing baseline marks observed counts partial because supplied history may remain.
 
