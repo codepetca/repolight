@@ -387,11 +387,10 @@ button:disabled {
 
 .auth-panel .brand {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 10px 14px;
 }
 
-.auth-panel .brand-mark { width: 56px; height: 56px; }
 .auth-panel .brand-copy { display: contents; }
 .auth-panel .brand-name { font-size: 24px; }
 .auth-panel .brand-tagline { grid-column: 1 / -1; font-size: 14px; }

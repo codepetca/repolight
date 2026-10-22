@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'RepoLight',
-  description: 'Code is revealed.',
+  description: 'Code, revealed.',
   icons: {
     icon: [
       { url: '/repolight-icon-32.png', type: 'image/png', sizes: '32x32' },
