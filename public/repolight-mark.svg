@@ -1,7 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <radialGradient id="glow" cx="24" cy="24" r="19" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24" stop-opacity=".65"/>
+      <stop offset=".4" stop-color="#FBBF24" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
   <rect width="48" height="48" rx="12" fill="#123B3A"/>
-  <path d="M16 12v24m0-6c0-7 12-2 12-9" stroke="#BCE9DB" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="16" cy="12" r="4" fill="#123B3A" stroke="#BCE9DB" stroke-width="3"/>
-  <circle cx="16" cy="36" r="4" fill="#123B3A" stroke="#BCE9DB" stroke-width="3"/>
-  <circle cx="28" cy="21" r="7" fill="#FBBF24"/>
+  <circle cx="24" cy="24" r="19" fill="url(#glow)"/>
+  <circle cx="24" cy="24" r="6" fill="#FFF6CF" stroke="#FBBF24" stroke-width="2.5"/>
 </svg>
