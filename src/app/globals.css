@@ -387,13 +387,19 @@ button:disabled {
 
 .auth-panel .brand {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px auto;
+  justify-content: center;
   gap: 10px 14px;
 }
 
 .auth-panel .brand-copy { display: contents; }
 .auth-panel .brand-name { font-size: 24px; }
-.auth-panel .brand-tagline { grid-column: 1 / -1; font-size: 14px; }
+.auth-panel .brand-tagline {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
 
 .alert {
   border: 1px solid #e4c7c3;
