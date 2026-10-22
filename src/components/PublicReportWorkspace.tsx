@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEventHandler, type FormEvent } from 'react'
 import { skyHopInput } from '../../fixtures/reports/sky-hop'
 import { buildRepositoryReport } from '@/lib/report/build'
 import type { RepositoryReport } from '@/lib/report/contract'
 import { periodFromDates, publicReportRequestSchema, type PublicAnalysisResult } from '@/lib/report/public'
 import { buildRuleFeedback } from '@/lib/report/rules'
+import { formatDayInZone } from '@/lib/engine/time'
 import styles from './PublicReportWorkspace.module.css'
 
 const list = (value: string) => value.split(/[,\n]/).map(item => item.trim()).filter(Boolean)
@@ -21,6 +22,20 @@ export function PublicReportWorkspace() {
   const [actionStatus, setActionStatus] = useState('')
   const [view, setView] = useState<'summary' | 'evidence'>('summary')
   const [configurationOpen, setConfigurationOpen] = useState(true)
+  const [studentLogin, setStudentLogin] = useState('')
+  const [loginEdited, setLoginEdited] = useState(false)
+  const [dates, setDates] = useState({startDate:'',endDate:'',timezone:'America/Toronto'})
+  useEffect(() => {
+    let timezone = 'America/Toronto'
+    try {
+      const current = Intl.DateTimeFormat().resolvedOptions().timeZone
+      if (current) { new Intl.DateTimeFormat('en', {timeZone:current}); timezone = current }
+    } catch { /* Toronto is the fallback, including daylight saving changes. */ }
+    const endDate = formatDayInZone(new Date().toISOString(),timezone)
+    const first = new Date(`${endDate}T12:00:00Z`)
+    first.setUTCDate(first.getUTCDate() - 29)
+    setDates({timezone,startDate:first.toISOString().slice(0,10),endDate})
+  }, [])
   const resultHeading = useRef<HTMLHeadingElement>(null)
   const configurationHeading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { if (result) resultHeading.current?.focus() }, [result, view])
@@ -44,7 +59,7 @@ export function PublicReportWorkspace() {
     const field = (name: string) => String(form.get(name) || '').trim()
     try {
       const request = publicReportRequestSchema.parse({
-        repositoryUrl: field('repositoryUrl'), ...(field('branch') ? { branch: field('branch') } : {}),
+        repositoryUrl: field('repositoryUrl'), branch: field('branch') || 'main',
         githubLogins: list(field('githubLogins')), commitEmails: list(field('commitEmails')),
         period: periodFromDates(field('startDate'), field('endDate'), field('timezone')),
         scheduledProjectDates: field('scheduledProjectDates') ? list(field('scheduledProjectDates')) : null,
@@ -86,27 +101,29 @@ export function PublicReportWorkspace() {
 
   return <main className={styles.workspace}>
     <div className={styles.intro} hidden={Boolean(result)}>
-      <p className={styles.eyebrow}>REPOSITORY REPORTS</p>
-      <h1>Make progress visible.</h1>
-      <p>Review the public commit evidence, understand its limits, and prepare feedback in your own words.</p>
-      <span className="badge">Database-free preview · live analysis in local development</span>
-      <p className={styles.modeNotice}>Live collection is available only from the local development server on a loopback address. The fictional demo works offline in this page.</p>
+      <h1>See how the project came together.</h1>
     </div>
     <section className={styles.panel} aria-labelledby="configure-heading" hidden={Boolean(result) && !configurationOpen}>
-      <div className={styles.sectionHead}><div><h2 id="configure-heading" ref={configurationHeading} tabIndex={-1}>Start with a repository</h2><p>One public repository, one explicit student identity, one review period.</p></div>
+      <div className={styles.sectionHead}><div><h2 id="configure-heading" ref={configurationHeading} tabIndex={-1}>Start with a repository</h2></div>
         <button className="button secondary" type="button" onClick={demo} disabled={loading}>Explore fictional demo</button></div>
       <form onSubmit={analyze}>
         <fieldset disabled={loading} className={styles.fieldset}>
           <div className={styles.formGrid}>
-            <Field label="Public GitHub repository" name="repositoryUrl" required placeholder="https://github.com/student/project" type="url" hint="Plain HTTPS GitHub URL. Public repositories only." />
-            <Field label="Branch (optional)" name="branch" placeholder="Repository default branch" />
-            <Field label="Student GitHub logins" name="githubLogins" required placeholder="student-login" hint="Separate aliases with commas or newlines. Counts use this identity only." />
-            <Field label="Timezone" name="timezone" required defaultValue="America/Toronto" />
-            <Field label="Start date" name="startDate" required type="date" />
-            <Field label="End date (inclusive)" name="endDate" required type="date" hint="Both dates are included, using midnight boundaries in the selected timezone." />
+            <Field label="Public GitHub repository" name="repositoryUrl" required placeholder="https://github.com/student/project" type="url" onChange={event => {
+              if (!loginEdited) setStudentLogin(event.target.value.trim().match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/[A-Za-z0-9_.-]+\/?$/)?.[1] || '')
+            }} />
+            <Field label="Student GitHub username" name="githubLogins" required placeholder="student-login" value={studentLogin} onChange={event => {setStudentLogin(event.target.value);setLoginEdited(Boolean(event.target.value))}} hint="Suggested from the repo owner. Change it for shared or organization repos." />
           </div>
-          <Field label="Scheduled project dates (optional)" name="scheduledProjectDates" multiline placeholder={'2026-10-05\n2026-10-06'} hint="YYYY-MM-DD, separated by commas or newlines. Leave blank when unknown; schedule metrics will be unavailable." />
-          <details className={styles.advanced}><summary>Baseline & exclusions</summary>
+          <details className={styles.advanced}><summary>Options</summary>
+            <p className={styles.muted}>Last 30 days by default. Dates select commits to review; they do not schedule a task.</p>
+            <div className={styles.formGrid}>
+              <Field label="Branch" name="branch" defaultValue="main" />
+              <Field label="Timezone" name="timezone" required value={dates.timezone} onChange={event => setDates({...dates,timezone:event.target.value})} />
+              <Field label="Start date" name="startDate" required type="date" value={dates.startDate} onChange={event => setDates({...dates,startDate:event.target.value})} />
+              <Field label="End date (inclusive)" name="endDate" required type="date" value={dates.endDate} onChange={event => setDates({...dates,endDate:event.target.value})} />
+            </div>
+            <Field label="Scheduled project dates (optional)" name="scheduledProjectDates" multiline placeholder={'2026-10-05\n2026-10-06'} hint="YYYY-MM-DD, separated by commas or newlines. Leave blank when unknown." />
+            <h3>Starter history & exclusions</h3>
             <p>Review inherited starter history before attributing it to a student. Explicit exclusions are preserved in the report.</p>
             <label className={styles.checkbox}><input type="checkbox" name="baselineReviewed" /> <span>I reviewed the starter history and supplied the necessary exclusions.</span></label>
             <p className={styles.muted}>This confirmation records your review; Repocat does not compare a starter repository automatically. Without it, counts are marked partial.</p>
@@ -118,7 +135,7 @@ export function PublicReportWorkspace() {
             </div>
             <p className={styles.muted}>Separate entries with commas or newlines. Editing a supplied file is included unless explicitly excluded.</p>
           </details>
-          <div className={styles.actions}><button className="button" type="submit">{loading ? 'Collecting public evidence…' : 'Analyze public repository'}</button><span className={styles.muted}>Nothing is saved to a database.</span></div>
+          <div className={styles.actions}><button className="button" type="submit">{loading ? 'Analyzing…' : 'Analyze public repository'}</button><span className={styles.muted}>Last 30 days by default</span></div>
         </fieldset>
       </form>
       {loading && <p role="status">Pinning the branch snapshot and collecting evidence. This may take a moment.</p>}
@@ -162,7 +179,7 @@ export function PublicReportWorkspace() {
       </section>
       <button type="button" className="button secondary" onClick={() => setView('summary')}>Return to summary & feedback</button>
       </>}
-    </div> : <section className={styles.empty} aria-label="Report preview"><span className={styles.emptyIcon}>R</span><h2>Evidence first. Feedback second.</h2><p>Analyze a public repository or explore the fictional Sky Hop example to see the timeline, file activity and a reviewable feedback draft.</p></section>}
+    </div> : null}
   </main>
 }
 
@@ -208,7 +225,7 @@ function SummaryLimitations({result}: {result: DisplayResult}) {
   </section>
 }
 
-function Field({ label, name, hint, multiline, ...props }: { label: string; name: string; hint?: string; multiline?: boolean; required?: boolean; type?: string; placeholder?: string; defaultValue?: string }) {
+function Field({ label, name, hint, multiline, ...props }: { label: string; name: string; hint?: string; multiline?: boolean; required?: boolean; type?: string; placeholder?: string; defaultValue?: string; value?: string; onChange?: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement> }) {
   return <div className={styles.field}><label htmlFor={name}>{label}</label>{multiline ? <textarea id={name} name={name} rows={3} aria-describedby={hint ? `${name}-hint` : undefined} {...props} /> : <input id={name} name={name} aria-describedby={hint ? `${name}-hint` : undefined} {...props} />}{hint && <small id={`${name}-hint`}>{hint}</small>}</div>
 }
 

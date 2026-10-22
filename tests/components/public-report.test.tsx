@@ -5,9 +5,54 @@ import { buildRepositoryReport } from '@/lib/report/build'
 import { buildRuleFeedback } from '@/lib/report/rules'
 import { skyHopInput } from '../../fixtures/reports/sky-hop'
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('PublicReportWorkspace', () => {
+  it('starts with a compact form, main branch and a browser-local 30-day period', async () => {
+    vi.useFakeTimers({toFake:['Date']})
+    vi.setSystemTime(new Date('2026-10-22T01:00:00Z'))
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions
+    vi.spyOn(Intl.DateTimeFormat.prototype,'resolvedOptions').mockImplementation(function (this: Intl.DateTimeFormat) {return {...resolved.call(this),timeZone:'Pacific/Auckland'}})
+    const input = skyHopInput()
+    const report = buildRepositoryReport(input)
+    const fetchMock = vi.fn().mockResolvedValue({ok:true,json:async()=>({report,ruleFeedback:buildRuleFeedback(report)})})
+    vi.stubGlobal('fetch',fetchMock)
+    render(<PublicReportWorkspace />)
+    expect(screen.getByRole('heading',{name:'See how the project came together.'})).toBeTruthy()
+    expect(screen.queryByText(/Database-free preview/)).toBeNull()
+    const options = screen.getByText('Options').closest('details')!
+    expect(options.open).toBe(false)
+    expect((screen.getByLabelText('Timezone') as HTMLInputElement).value).toBe('Pacific/Auckland')
+    expect((screen.getByLabelText('Start date') as HTMLInputElement).value).toBe('2026-09-23')
+    expect((screen.getByLabelText('End date (inclusive)') as HTMLInputElement).value).toBe('2026-10-22')
+    fireEvent.change(screen.getByLabelText('Public GitHub repository'),{target:{value:input.repositoryUrl}})
+    expect((screen.getByLabelText('Student GitHub username') as HTMLInputElement).value).toBe('sample-student')
+    fireEvent.click(screen.getByRole('button',{name:'Analyze public repository'}))
+    await screen.findByRole('heading',{name:'Workflow findings'})
+    const request = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(request).toMatchObject({branch:'main',githubLogins:['sample-student'],period:{timezone:'Pacific/Auckland',startAt:'2026-09-22T12:00:00.000Z',endAt:'2026-10-22T11:00:00.000Z'}})
+  })
+
+  it('updates suggested owners while preserving an explicitly entered student username', () => {
+    render(<PublicReportWorkspace />)
+    const repo = screen.getByLabelText('Public GitHub repository')
+    const student = screen.getByLabelText('Student GitHub username') as HTMLInputElement
+    fireEvent.change(repo,{target:{value:'https://github.com/alice/project'}})
+    expect(student.value).toBe('alice')
+    fireEvent.change(repo,{target:{value:'https://github.com/bob/project'}})
+    expect(student.value).toBe('bob')
+    fireEvent.change(student,{target:{value:'actual-student'}})
+    fireEvent.change(repo,{target:{value:'https://github.com/school-org/assignment'}})
+    expect(student.value).toBe('actual-student')
+  })
+
+  it('falls back to Toronto when browser timezone detection is unavailable', () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype,'resolvedOptions').mockImplementation(() => {throw new Error('unavailable')})
+    render(<PublicReportWorkspace />)
+    expect((screen.getByLabelText('Timezone') as HTMLInputElement).value).toBe('America/Toronto')
+    expect((screen.getByLabelText('Start date') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
   it('labels the offline demo, exposes evidence and keeps teacher edits separate', async () => {
     const copy = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } })
@@ -50,8 +95,9 @@ describe('PublicReportWorkspace', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<PublicReportWorkspace />)
     fireEvent.change(screen.getByLabelText('Public GitHub repository'), { target: { value: input.repositoryUrl } })
-    fireEvent.change(screen.getByLabelText('Student GitHub logins'), { target: { value: 'sample-student, second-login' } })
+    fireEvent.change(screen.getByLabelText('Student GitHub username'), { target: { value: 'sample-student, second-login' } })
     fireEvent.change(screen.getByLabelText('Commit email aliases (optional)'), { target: { value: 'student@example.test' } })
+    fireEvent.change(screen.getByLabelText('Timezone'), {target:{value:'America/Toronto'}})
     fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-10-05' } })
     fireEvent.change(screen.getByLabelText('End date (inclusive)'), { target: { value: '2026-10-16' } })
     fireEvent.click(screen.getByRole('button', { name: 'Analyze public repository' }))
@@ -77,7 +123,8 @@ describe('PublicReportWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Explore fictional demo' }))
     fireEvent.click(screen.getByRole('button', {name:'Analyze another repository'}))
     fireEvent.change(screen.getByLabelText('Public GitHub repository'), { target: { value: 'https://github.com/example/repository' } })
-    fireEvent.change(screen.getByLabelText('Student GitHub logins'), { target: { value: 'example' } })
+    fireEvent.change(screen.getByLabelText('Student GitHub username'), { target: { value: 'example' } })
+    fireEvent.change(screen.getByLabelText('Timezone'), {target:{value:'America/Toronto'}})
     fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-10-05' } })
     fireEvent.change(screen.getByLabelText('End date (inclusive)'), { target: { value: '2026-10-16' } })
     fireEvent.click(screen.getByRole('button', { name: 'Analyze public repository' }))
@@ -88,12 +135,12 @@ describe('PublicReportWorkspace', () => {
 
   it('opens each new report on summary and preserves the form when changing configuration', () => {
     render(<PublicReportWorkspace />)
-    fireEvent.change(screen.getByLabelText('Student GitHub logins'),{target:{value:'remember-this-login'}})
+    fireEvent.change(screen.getByLabelText('Student GitHub username'),{target:{value:'remember-this-login'}})
     fireEvent.click(screen.getByRole('button',{name:'Explore fictional demo'}))
     expect(screen.queryByRole('heading',{name:'Start with a repository'})).toBeNull()
     fireEvent.click(screen.getByRole('button',{name:'View evidence'}))
     fireEvent.click(screen.getByRole('button',{name:'Analyze another repository'}))
-    expect((screen.getByLabelText('Student GitHub logins') as HTMLInputElement).value).toBe('remember-this-login')
+    expect((screen.getByLabelText('Student GitHub username') as HTMLInputElement).value).toBe('remember-this-login')
     fireEvent.click(screen.getByRole('button',{name:'Explore fictional demo'}))
     expect(screen.getByRole('heading',{name:'Workflow findings'})).toBeTruthy()
     expect(screen.queryByRole('table',{name:'Commit evidence'})).toBeNull()
@@ -105,7 +152,7 @@ describe('PublicReportWorkspace', () => {
     vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({report,ruleFeedback:buildRuleFeedback(report)})}))
     render(<PublicReportWorkspace />)
     fireEvent.change(screen.getByLabelText('Public GitHub repository'),{target:{value:input.repositoryUrl}})
-    fireEvent.change(screen.getByLabelText('Student GitHub logins'),{target:{value:'sample-student'}})
+    fireEvent.change(screen.getByLabelText('Student GitHub username'),{target:{value:'sample-student'}})
     fireEvent.change(screen.getByLabelText('Start date'),{target:{value:'2026-10-05'}})
     fireEvent.change(screen.getByLabelText('End date (inclusive)'),{target:{value:'2026-10-16'}})
     fireEvent.click(screen.getByRole('button',{name:'Analyze public repository'}))
