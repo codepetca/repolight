@@ -118,6 +118,7 @@ export class GitHubClient {
     const summaries: GitHubCommitSummary[] = []
     const seen = new Set<string>()
     let scanned = 0
+    let omittedMerges = 0
     for (let page = 1; page <= 3; page += 1) {
       const result: { data: GitHubCommitSummary[]; headers: Headers } = await requestPage<GitHubCommitSummary[]>(`${base}/commits?sha=${sha}&per_page=100&page=${page}`)
       if (!Array.isArray(result.data)) throw new Error('GitHub returned an invalid commit history response.')
@@ -137,7 +138,7 @@ export class GitHubClient {
           history = 'partial'
           notes.add('Some commit parent metadata is missing; merge identification may be incomplete.')
         }
-        if ((commit.parents?.length || 0) > 1) continue
+        if ((commit.parents?.length || 0) > 1) { omittedMerges += 1; continue }
         if (!isValidDate(commit.commit.author.date)) {
           history = 'partial'
           notes.add('Some commits have missing or invalid author dates; their time-window membership is unknown.')
@@ -156,6 +157,7 @@ export class GitHubClient {
       }
       if (!hasNext && result.data.length < 100) break
     }
+    if (omittedMerges) notes.add(`${omittedMerges} merge commit(s) omitted from scanned history by collection policy; merge-resolution-only changes are not assessed; complete coverage refers to this non-merge scope.`)
     const events = new Array<AnalysisEvent>(summaries.length)
     let cursor = 0
     const worker = async () => {

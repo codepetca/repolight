@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GitHubClient } from '@/lib/engine/github'
+import { analyzePublicRepository } from '@/lib/report/analyze'
 import type { RepositoryTarget } from '@/lib/engine/types'
 
 const target: RepositoryTarget = { key: 'acme/app#main', provider: 'github', owner: 'acme', name: 'app', branch: 'main', repoUrl: 'https://github.com/acme/app' }
@@ -68,6 +69,15 @@ describe('public report evidence collector', () => {
     const report = await client.collectPublicReportEvidence(target)
     expect(report.events.map((event) => event.title)).toEqual(['Merge puzzle implementation'])
     expect(fetchImpl.mock.calls.some(([url]) => String(url).includes(`/commits/${sha(2)}`))).toBe(false)
+  })
+
+  it('preserves the omitted merge count and merge-resolution limitation in the final report', async () => {
+    const { client } = fixture(url => url.pathname.endsWith('/commits') ? json([commit(1, {parents:[{sha:sha(2)},{sha:sha(3)}]})]) : undefined)
+    const result = await analyzePublicRepository({repositoryUrl:target.repoUrl,branch:'main',githubLogins:['alice'],baselineReviewed:true,period:{startAt:'2026-10-01T00:00:00Z',endAt:'2026-10-02T00:00:00Z',timezone:'UTC'},scheduledProjectDates:['2026-10-01'],exclusions:{commitShas:[],pathPrefixes:[],botLogins:[]}},client)
+    expect(result.report.metrics.studentCommits.value).toBe(0)
+    expect(result.report.coverage.notes.join(' ')).toContain('1 merge commit(s) omitted')
+    expect(result.report.coverage.notes.join(' ')).toContain('merge-resolution-only changes are not assessed')
+    expect(result.report.coverage.notes.join(' ')).toContain('complete coverage refers to this non-merge scope')
   })
 
   it('collects file pages from the commit SHA and normalizes all file evidence', async () => {
