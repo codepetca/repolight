@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react'
 import { LogIn } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { Brand } from '@/components/Brand'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -35,14 +36,11 @@ export default function LoginPage() {
 
   return (
     <main className="auth-layout">
-      <form className="auth-panel stack" onSubmit={submit}>
+      <form className="auth-panel stack" aria-label={mode === 'login' ? 'Sign in' : 'Create account'} onSubmit={submit}>
         <div>
           <div className="brand">
-            <span className="brand-mark">R</span>
-            <span>Repocat</span>
+            <Brand heading />
           </div>
-          <h1 className="page-title" style={{ marginTop: 18 }}>{mode === 'login' ? 'Sign in' : 'Create account'}</h1>
-          <p className="page-subtitle">Standalone repository contribution analysis.</p>
         </div>
 
         {error && <div className="alert">{error}</div>}

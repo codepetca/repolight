@@ -1,18 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEventHandler, type FormEvent } from 'react'
-import { skyHopInput } from '../../fixtures/reports/sky-hop'
-import { buildRepositoryReport } from '@/lib/report/build'
 import type { RepositoryReport } from '@/lib/report/contract'
 import { periodFromDates, publicReportRequestSchema, type PublicAnalysisResult } from '@/lib/report/public'
-import { buildRuleFeedback } from '@/lib/report/rules'
 import { formatDayInZone } from '@/lib/engine/time'
 import styles from './PublicReportWorkspace.module.css'
 
 const list = (value: string) => value.split(/[,\n]/).map(item => item.trim()).filter(Boolean)
 const readable = (value: string) => value.replaceAll('_', ' ')
 const dateLabel = (date: string) => date.slice(5).replace('-', '/')
-type DisplayResult = { analysis: PublicAnalysisResult; fictional: boolean; logins: string[] }
+type DisplayResult = { analysis: PublicAnalysisResult; logins: string[] }
 
 export function PublicReportWorkspace() {
   const [result, setResult] = useState<DisplayResult | null>(null)
@@ -41,8 +38,8 @@ export function PublicReportWorkspace() {
   useEffect(() => { if (result) resultHeading.current?.focus() }, [result, view])
   useEffect(() => { if (result && configurationOpen) configurationHeading.current?.focus() }, [configurationOpen, result])
 
-  function show(analysis: PublicAnalysisResult, fictional: boolean, logins: string[]) {
-    setResult({ analysis, fictional, logins })
+  function show(analysis: PublicAnalysisResult, logins: string[]) {
+    setResult({ analysis, logins })
     setFeedback(analysis.ruleFeedback.feedbackDraft)
     setActionStatus('')
     setView('summary')
@@ -70,17 +67,11 @@ export function PublicReportWorkspace() {
       const response = await fetch('/api/reports/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'The repository could not be analyzed. Try again.')
-      show(payload as PublicAnalysisResult, false, request.githubLogins)
+      show(payload as PublicAnalysisResult, request.githubLogins)
     } catch (caught) {
       const issues = caught && typeof caught === 'object' && 'issues' in caught ? (caught as { issues: Array<{ message: string }> }).issues : null
       setError(issues ? issues.map(issue => issue.message).join(' ') : caught instanceof Error ? caught.message : 'Unable to analyze this repository.')
     } finally { setLoading(false) }
-  }
-
-  function demo() {
-    const report = buildRepositoryReport(skyHopInput())
-    setError('')
-    show({ report, ruleFeedback: buildRuleFeedback(report) }, true, ['sample-student'])
   }
 
   async function copy() {
@@ -90,22 +81,18 @@ export function PublicReportWorkspace() {
 
   function download() {
     if (!result) return
-    const content = { ...result.analysis, fictional: result.fictional, teacherFeedback: feedback }
+    const content = { ...result.analysis, teacherFeedback: feedback }
     const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' }))
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `repocat-${result.fictional ? 'fictional-' : ''}report.json`
+    anchor.download = 'repocat-report.json'
     anchor.click()
     URL.revokeObjectURL(url)
   }
 
   return <main className={styles.workspace}>
-    <div className={styles.intro} hidden={Boolean(result)}>
-      <h1>See how the project came together.</h1>
-    </div>
     <section className={styles.panel} aria-labelledby="configure-heading" hidden={Boolean(result) && !configurationOpen}>
-      <div className={styles.sectionHead}><div><h2 id="configure-heading" ref={configurationHeading} tabIndex={-1}>Start with a repository</h2></div>
-        <button className="button secondary" type="button" onClick={demo} disabled={loading}>Explore fictional demo</button></div>
+      <div className={styles.sectionHead}><h1 id="configure-heading" ref={configurationHeading} tabIndex={-1}>Analyze a repository</h1></div>
       <form onSubmit={analyze}>
         <fieldset disabled={loading} className={styles.fieldset}>
           <div className={styles.formGrid}>
@@ -143,8 +130,8 @@ export function PublicReportWorkspace() {
     </section>
     {result ? <div className={styles.results}>
       <section className={styles.panel} aria-labelledby="report-heading">
-        <div className={styles.sectionHead}><div><p className={styles.eyebrow}>{result.fictional ? 'FICTIONAL DEMO · SYNTHETIC EVIDENCE' : 'PUBLIC REPOSITORY SNAPSHOT'}</p>
-          <h2 ref={resultHeading} tabIndex={-1} id="report-heading">{result.fictional ? 'Fictional Sky Hop example' : result.analysis.report.repository.url.replace('https://github.com/', '')}</h2>
+        <div className={styles.sectionHead}><div><p className={styles.eyebrow}>PUBLIC REPOSITORY SNAPSHOT</p>
+          <h2 ref={resultHeading} tabIndex={-1} id="report-heading">{result.analysis.report.repository.url.replace('https://github.com/', '')}</h2>
           <p>{view === 'summary' ? 'Report summary' : 'Report evidence'} · {result.analysis.report.repository.branch} · {result.logins.join(', ')}</p>
           <p>{localDate(result.analysis.report.period.startAt, result.analysis.report.period.timezone)} – {localDate(new Date(Date.parse(result.analysis.report.period.endAt) - 1).toISOString(), result.analysis.report.period.timezone)} · {result.analysis.report.period.timezone}</p></div>
           <div className={styles.actions}>

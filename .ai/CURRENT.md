@@ -4,7 +4,7 @@ Recovered from main `626d7e9da7702bcd791ebb59f947937293907b0a`.
 
 User authorized recovery/contract work, followed by public repo analysis with metrics, graphs and rule-based feedback. Public repos only; GitHub App setup and AI remain deferred. Durable jobs, hosted tenant isolation, saved reports and Pika integration remain later phases.
 
-Current work reuses Next.js/Neon/Drizzle and existing v1 normalized events/API. The pure `src/lib/report` module provides the v2 report schema/builder and fictional Sky Hop fixture. `/reports` adds the standalone form, demo, timeline, heatmap, commit evidence, editable rule feedback and JSON export. `/api/reports/analyze` is deliberately development/loopback-only, requires same-origin JSON, bounds input and permits one in-flight collection per process. It needs no database. It is not the proposed tenant-scoped v2 SaaS API. See `docs/PUBLIC-REPORTS.md` for the request/response contract and limits.
+Current work reuses Next.js/Neon/Drizzle and existing v1 normalized events/API. The pure `src/lib/report` module provides the v2 report schema/builder and fictional Sky Hop fixture. `/reports` adds the standalone form, timeline, heatmap, commit evidence, editable rule feedback and JSON export. `/api/reports/analyze` is deliberately development/loopback-only, requires same-origin JSON, bounds input and permits one in-flight collection per process. It needs no database. It is not the proposed tenant-scoped v2 SaaS API. See `docs/PUBLIC-REPORTS.md` for the request/response contract and limits.
 
 Reports now open on a concise summary with core/observed metrics, workflow findings, limitations and editable feedback. Detailed graphs, commits and metadata are behind “View evidence”; switching views preserves edits and JSON still exports the complete report. This is a presentation change; collection, metrics and feedback rules remain unchanged.
 
@@ -17,3 +17,5 @@ Read `docs/RECOVERY.md` for verified checks, existing deployment blockers and ru
 Important existing limits: Next 14 dependency advisories; fixed fallback session secret; shared API service user; no configured local database; collector caps and unpinned branch reads; webhook timestamps derived from head commit metadata. Do not deploy this recovered baseline as a multi-customer SaaS.
 
 Hub: `/Users/stew/Repos/repocat` on main. Active recovery worktree: `/Users/stew/.codex/worktrees/repocat/recover-report-contract`, branch `codex/recover-report-contract`. No push/publication authorized. Local receipts are ignored under `.verification/recovery`.
+
+Branding uses one `REPOCAT_TAGLINE` and shared Brand component across login, reports and authenticated headers. The product demo button and client fixture imports are removed; synthetic fixtures remain in tests/CLI. Sign-in retains its accessible form name and action button without a large mode heading.

@@ -7,6 +7,14 @@ import { skyHopInput } from '../../fixtures/reports/sky-hop'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
+async function submitSample() {
+  const report = buildRepositoryReport(skyHopInput())
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok:true,json:async()=>({report,ruleFeedback:buildRuleFeedback(report)})}))
+  fireEvent.change(screen.getByLabelText('Public GitHub repository'),{target:{value:'https://github.com/sample-student/sky-hop'}})
+  fireEvent.click(screen.getByRole('button',{name:'Analyze public repository'}))
+  await screen.findByRole('heading',{name:'sample-student/sky-hop'})
+}
+
 describe('PublicReportWorkspace', () => {
   it('starts with a compact form, main branch and a browser-local 60-day period', async () => {
     vi.useFakeTimers({toFake:['Date']})
@@ -18,7 +26,8 @@ describe('PublicReportWorkspace', () => {
     const fetchMock = vi.fn().mockResolvedValue({ok:true,json:async()=>({report,ruleFeedback:buildRuleFeedback(report)})})
     vi.stubGlobal('fetch',fetchMock)
     render(<PublicReportWorkspace />)
-    expect(screen.getByRole('heading',{name:'See how the project came together.'})).toBeTruthy()
+    expect(screen.getByRole('heading',{name:'Analyze a repository'})).toBeTruthy()
+    expect(screen.queryByRole('button',{name:'Explore fictional demo'})).toBeNull()
     expect(screen.queryByText(/Database-free preview/)).toBeNull()
     const options = screen.getByText('Options').closest('details')!
     expect(options.open).toBe(false)
@@ -53,12 +62,12 @@ describe('PublicReportWorkspace', () => {
     expect((screen.getByLabelText('Start date') as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
-  it('labels the offline demo, exposes evidence and keeps teacher edits separate', async () => {
+  it('exposes submitted evidence and keeps teacher edits separate', async () => {
     const copy = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } })
     render(<PublicReportWorkspace />)
-    fireEvent.click(screen.getByRole('button', { name: 'Explore fictional demo' }))
-    expect(screen.getByText(/Fictional Sky Hop example/)).toBeTruthy()
+    await submitSample()
+    expect(screen.getByRole('heading',{name:'sample-student/sky-hop'})).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Student commits' })).toBeTruthy()
     expect(screen.getByRole('heading', {name:'Workflow findings'})).toBeTruthy()
     expect(screen.getByRole('heading', {name:'Limitations'})).toBeTruthy()
@@ -120,7 +129,8 @@ describe('PublicReportWorkspace', () => {
   it('clears previous results when a new request fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: 'Public repository not found.' }) }))
     render(<PublicReportWorkspace />)
-    fireEvent.click(screen.getByRole('button', { name: 'Explore fictional demo' }))
+    await submitSample()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok:false,json:async()=>({error:'Public repository not found.'})}))
     fireEvent.click(screen.getByRole('button', {name:'Analyze another repository'}))
     fireEvent.change(screen.getByLabelText('Public GitHub repository'), { target: { value: 'https://github.com/example/repository' } })
     fireEvent.change(screen.getByLabelText('Student GitHub username'), { target: { value: 'example' } })
@@ -133,15 +143,15 @@ describe('PublicReportWorkspace', () => {
     expect(screen.getByRole('alert').textContent).toContain('Public repository not found.')
   })
 
-  it('opens each new report on summary and preserves the form when changing configuration', () => {
+  it('opens each new report on summary and preserves the form when changing configuration', async () => {
     render(<PublicReportWorkspace />)
     fireEvent.change(screen.getByLabelText('Student GitHub username'),{target:{value:'remember-this-login'}})
-    fireEvent.click(screen.getByRole('button',{name:'Explore fictional demo'}))
-    expect(screen.queryByRole('heading',{name:'Start with a repository'})).toBeNull()
+    await submitSample()
+    expect(screen.queryByRole('heading',{name:'Analyze a repository'})).toBeNull()
     fireEvent.click(screen.getByRole('button',{name:'View evidence'}))
     fireEvent.click(screen.getByRole('button',{name:'Analyze another repository'}))
     expect((screen.getByLabelText('Student GitHub username') as HTMLInputElement).value).toBe('remember-this-login')
-    fireEvent.click(screen.getByRole('button',{name:'Explore fictional demo'}))
+    await submitSample()
     expect(screen.getByRole('heading',{name:'Workflow findings'})).toBeTruthy()
     expect(screen.queryByRole('table',{name:'Commit evidence'})).toBeNull()
   })

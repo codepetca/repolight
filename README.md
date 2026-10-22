@@ -15,7 +15,7 @@ npm run report:sample --silent
 
 The sample emits a fictional report with deterministic commit count, density, scheduled-day coverage, busiest-day share, timeline and file heatmap evidence. No database, token, GitHub App or AI provider is required. The legacy grading scores described below remain v1 behavior and are not included in the new report contract. Existing deployment blockers are documented in the recovery status.
 
-For the interactive standalone report, run `npm run dev -- --hostname 127.0.0.1 --port 3047` and open `http://127.0.0.1:3047/reports`. Explore the fictional demo or submit a public GitHub URL, student login, review period and optional project schedule. The report includes graphs, commit evidence, transparent feedback rules, editable teacher feedback and JSON download. No sign-in or database is needed for this local preview. Live analysis is disabled in production; this is not an unauthenticated hosted SaaS endpoint. See [public reports](docs/PUBLIC-REPORTS.md) for collection limits, rule definitions and API input/output. AI remains optional future work.
+For the interactive standalone report, run `npm run dev -- --hostname 127.0.0.1 --port 3047` and open `http://127.0.0.1:3047/reports`. Submit a public GitHub URL and student username; the review period and project schedule are under Options. The report includes graphs, commit evidence, transparent feedback rules, editable teacher feedback and JSON download. No sign-in or database is needed for this local preview. Live analysis is disabled in production; this is not an unauthenticated hosted SaaS endpoint. See [public reports](docs/PUBLIC-REPORTS.md) for collection limits, rule definitions and API input/output. AI remains optional future work.
 
 ## Existing stack
 

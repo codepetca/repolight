@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { REPOCAT_TAGLINE } from '@/lib/brand'
 
 export const metadata: Metadata = {
   title: 'Repocat',
-  description: 'Repository contribution analysis for fair contributor assessment.',
+  description: REPOCAT_TAGLINE,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
