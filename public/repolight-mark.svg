@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
   <defs>
     <radialGradient id="glow" cx="24" cy="24" r="19" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FBBF24" stop-opacity=".5"/>
+      <stop stop-color="#FBBF24" stop-opacity=".65"/>
+      <stop offset=".4" stop-color="#FBBF24" stop-opacity=".3"/>
       <stop offset="1" stop-color="#FBBF24" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="48" height="48" rx="12" fill="#123B3A"/>
   <circle cx="24" cy="24" r="19" fill="url(#glow)"/>
-  <path d="M24 8v4m0 24v4M8 24h4m24 0h4M12.7 12.7l2.8 2.8m17 17 2.8 2.8M12.7 35.3l2.8-2.8m17-17 2.8-2.8" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round"/>
   <circle cx="24" cy="24" r="6" fill="#FFF6CF" stroke="#FBBF24" stroke-width="2.5"/>
 </svg>
