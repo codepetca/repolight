@@ -7,7 +7,7 @@ export function Brand({ heading = false }: { heading?: boolean }) {
     <Image className="brand-mark" src="/repolight-mark.png" width={markSize} height={markSize} alt="" aria-hidden="true" priority />
     <span className="brand-copy">
       <Name className="brand-name">RepoLight</Name>
-      <span className="brand-tagline">See how code takes shape.</span>
+      <span className="brand-tagline">Code is revealed.</span>
     </span>
   </>
 }
