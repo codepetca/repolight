@@ -6,7 +6,7 @@ The compact form shows the repository URL and “Student GitHub username.” The
 
 Each completed report opens on a concise summary: the four core metrics, observed active days, generic-message share, up to three workflow findings, material limitations and an editable feedback draft. The configuration form is hidden after analysis; “Analyze another repository” reopens it with entered values intact. “View evidence” reveals source/collection metadata, the full timeline, file heatmap, commits and all rule observations. “Back to summary” preserves feedback edits. Each new analysis returns to the summary. Missing evidence stays unavailable/partial in both views; generic-message share is a rule count, not an AI-authorship score. JSON export always includes the full evidence, original rule feedback and separate teacher edits regardless of the visible view.
 
-RepoLight branding uses a commit graph with a light beam in the shared `Brand` component across login, report and authenticated headers, with no tagline. The login form keeps its accessible name and action button without a separate large mode heading.
+RepoLight branding uses a single node shining a light beam in the shared `Brand` component across login, report and authenticated headers, with the tagline “See how code takes shape.” The login form keeps its accessible name and action button without a separate large mode heading.
 
 ## Collection and reuse
 

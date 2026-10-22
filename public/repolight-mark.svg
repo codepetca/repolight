@@ -1,15 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
   <defs>
-    <linearGradient id="beam" x1="29" y1="18" x2="46" y2="14" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FBBF24" stop-opacity=".65"/>
-      <stop offset="1" stop-color="#FBBF24" stop-opacity=".08"/>
+    <linearGradient id="beam" x1="16" y1="24" x2="43" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#FBBF24" stop-opacity=".12"/>
     </linearGradient>
   </defs>
   <rect width="48" height="48" rx="12" fill="#123B3A"/>
-  <path d="M29 18 45 6v24Z" fill="url(#beam)"/>
-  <path d="M15 12v24m0-5c0-10 14-4 14-13" stroke="#BCE9DB" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="15" cy="12" r="4" fill="#123B3A" stroke="#BCE9DB" stroke-width="3"/>
-  <circle cx="15" cy="36" r="4" fill="#123B3A" stroke="#BCE9DB" stroke-width="3"/>
-  <circle cx="29" cy="18" r="4.5" fill="#FBBF24"/>
-  <circle cx="29" cy="18" r="2" fill="#FFF6CF"/>
+  <path d="M16 24 43 9v30Z" fill="url(#beam)"/>
+  <circle cx="16" cy="24" r="6" fill="#FFF6CF" stroke="#FBBF24" stroke-width="2.5"/>
 </svg>

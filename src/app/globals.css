@@ -104,6 +104,15 @@ button:disabled {
 
 .brand-name { margin: 0; font: inherit; }
 
+.brand-copy { display: grid; gap: 2px; min-width: 0; }
+
+.brand-tagline {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
 .brand-mark {
   display: block;
   width: 36px;

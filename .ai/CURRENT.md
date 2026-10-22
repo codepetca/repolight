@@ -18,6 +18,6 @@ Important existing limits: Next 14 dependency advisories; fixed fallback session
 
 Hub: `/Users/stew/Repos/repocat` on main. Active recovery worktree: `/Users/stew/.codex/worktrees/repocat/recover-report-contract`, branch `codex/recover-report-contract`. No push/publication authorized. Local receipts are ignored under `.verification/recovery`.
 
-Branding uses the shared Brand component across login, reports and authenticated headers, with no tagline. The product demo button and client fixture imports are removed; synthetic fixtures remain in tests/CLI. Sign-in retains its accessible form name and action button without a large mode heading.
+Branding uses the shared Brand component across login, reports and authenticated headers, with the tagline “See how code takes shape.” The product demo button and client fixture imports are removed; synthetic fixtures remain in tests/CLI. Sign-in retains its accessible form name and action button without a large mode heading.
 
-Product renamed to RepoLight. Shared branding uses a commit graph with an amber light beam, also used as the browser icon. UI, metadata, feedback and download filenames use RepoLight; legacy API helper names, REPOCAT_* configuration, session cookies, stored integration source IDs and checkout paths retain compatibility. No tagline.
+Product renamed to RepoLight. Shared branding uses a single illuminated node with an amber light beam, also used as the browser icon. UI, metadata, feedback and download filenames use RepoLight; legacy API helper names, REPOCAT_* configuration, session cookies, stored integration source IDs and checkout paths retain compatibility. The shared tagline is “See how code takes shape.”
