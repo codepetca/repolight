@@ -4,7 +4,13 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'RepoLight',
   description: 'See how code takes shape.',
-  icons: { icon: { url: '/repolight-mark.svg', type: 'image/svg+xml' } },
+  icons: {
+    icon: [
+      { url: '/repolight-icon-32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/repolight-icon-16.png', type: 'image/png', sizes: '16x16' },
+    ],
+    apple: { url: '/repolight-apple-icon.png', sizes: '180x180' },
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
