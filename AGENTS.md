@@ -1,4 +1,4 @@
-# Repocat
+# RepoLight
 
 Read `.ai/CURRENT.md`, `docs/REPORT-CONTRACT.md` and `docs/DEVELOPMENT.md` before implementation. `docs/REVIVAL-PLAN.md` is the roadmap; current user instructions override its assumptions.
 

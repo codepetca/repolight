@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { PublicReportWorkspace } from '@/components/PublicReportWorkspace'
 import { Brand } from '@/components/Brand'
 
-export const metadata = { title: 'Repository reports · Repocat' }
+export const metadata = { title: 'Repository reports · RepoLight' }
 
 export default function ReportsPage() {
   return <div className="app-shell">

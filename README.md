@@ -1,6 +1,8 @@
-# Repocat
+# RepoLight
 
-Repocat is a small standalone Next.js app for classroom-shaped public GitHub repository contribution analysis. The deterministic analyzer lives in `src/lib/engine`, while Repocat Classroom adds classes, student repo mappings, assignment dashboards, and analysis handoff for tools such as Pika.
+Formerly Repocat. The app now uses RepoLight branding; existing `REPOCAT_*` configuration and v1 integration identifiers remain compatible.
+
+RepoLight is a small standalone Next.js app for classroom-shaped public GitHub repository contribution analysis. The deterministic analyzer lives in `src/lib/engine`, while RepoLight Classroom adds classes, student repo mappings, assignment dashboards, and analysis handoff for tools such as Pika.
 
 ## Public-repository recovery and report contract
 
@@ -62,14 +64,14 @@ Optional:
 
 `commit_emails` may contain comma- or semicolon-separated addresses.
 
-## Repocat Classroom MVP
+## RepoLight Classroom MVP
 
 The Classroom layer is intentionally small:
 
 - Create a class with an optional GitHub org and default repo prefix.
 - Create an assignment from a CSV of one repository per student.
 - Track per-student repository status fields such as invite state, activity state, successful pushes, and first/last push timestamps.
-- Create a normal Repocat analysis run from the classroom assignment mapping.
+- Create a normal RepoLight analysis run from the classroom assignment mapping.
 
 Classroom assignment CSV fields:
 
@@ -136,7 +138,7 @@ GET  /api/v1/runs/:id/charts
 GET  /api/v1/runs/:id/export.csv
 ```
 
-Results use Repocat's canonical normalized analysis shape. Component scores are decimals from `0` to `1`; consuming apps decide how to map them into their own grading scale.
+Results use RepoLight's canonical normalized analysis shape. Component scores are decimals from `0` to `1`; consuming apps decide how to map them into their own grading scale.
 
 ```json
 {
@@ -202,7 +204,7 @@ Results use Repocat's canonical normalized analysis shape. Component scores are 
       },
       "strengths": ["meaningful project impact", "visible iteration and refinement"],
       "next_step": "Add commits that clearly show debugging, testing, cleanup, or refinement.",
-      "feedback_comment": "Repocat found 7 matching commit(s) across 4 active day(s) and 4 work session(s). Strongest evidence: meaningful project impact, visible iteration and refinement. Achievement: Iteration Pro. Next step: Add commits that clearly show debugging, testing, cleanup, or refinement. Confidence: 80%."
+      "feedback_comment": "RepoLight found 7 matching commit(s) across 4 active day(s) and 4 work session(s). Strongest evidence: meaningful project impact, visible iteration and refinement. Achievement: Iteration Pro. Next step: Add commits that clearly show debugging, testing, cleanup, or refinement. Confidence: 80%."
     }
   ]
 }

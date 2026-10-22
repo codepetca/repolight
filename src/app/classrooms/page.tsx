@@ -14,8 +14,8 @@ export default async function ClassroomsPage() {
       <div className="page">
         <div className="page-header">
           <div>
-            <h1 className="page-title">Repocat Classroom</h1>
-            <p className="page-subtitle">Manage coding classes, assignment repositories, activity status, and Repocat analysis runs.</p>
+            <h1 className="page-title">RepoLight Classroom</h1>
+            <p className="page-subtitle">Manage coding classes, assignment repositories, activity status, and RepoLight analysis runs.</p>
           </div>
           <Link className="button" href="/classrooms/new">
             <Plus size={16} aria-hidden="true" />
@@ -24,7 +24,7 @@ export default async function ClassroomsPage() {
         </div>
 
         {classrooms.length === 0 ? (
-          <div className="empty">No classes yet. Create a class, paste a student repo CSV, then turn it into a Repocat analysis run.</div>
+          <div className="empty">No classes yet. Create a class, paste a student repo CSV, then turn it into a RepoLight analysis run.</div>
         ) : (
           <div className="run-grid">
             {classrooms.map((classroom) => (

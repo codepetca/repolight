@@ -10,7 +10,7 @@ describe('RunWorkspace', () => {
 
     expect(screen.getByRole('heading', { name: 'Feedback' })).toBeTruthy()
     expect(screen.getAllByText('Iteration Pro').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Repocat found 7 matching commit\(s\)/)).toBeTruthy()
+    expect(screen.getByText(/RepoLight found 7 matching commit\(s\)/)).toBeTruthy()
     expect(screen.getByText('meaningful project impact')).toBeTruthy()
     expect(screen.getByText('visible iteration and refinement')).toBeTruthy()
     expect(screen.getAllByText(/Spread progress over more days or work sessions/).length).toBeGreaterThan(0)

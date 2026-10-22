@@ -85,7 +85,7 @@ export function PublicReportWorkspace() {
     const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' }))
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = 'repocat-report.json'
+    anchor.download = 'repolight-report.json'
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -113,7 +113,7 @@ export function PublicReportWorkspace() {
             <h3>Starter history & exclusions</h3>
             <p>Review inherited starter history before attributing it to a student. Explicit exclusions are preserved in the report.</p>
             <label className={styles.checkbox}><input type="checkbox" name="baselineReviewed" /> <span>I reviewed the starter history and supplied the necessary exclusions.</span></label>
-            <p className={styles.muted}>This confirmation records your review; Repocat does not compare a starter repository automatically. Without it, counts are marked partial.</p>
+            <p className={styles.muted}>This confirmation records your review; RepoLight does not compare a starter repository automatically. Without it, counts are marked partial.</p>
             <div className={styles.formGrid}>
               <Field label="Commit email aliases (optional)" name="commitEmails" multiline hint="Use known student commit emails when GitHub cannot link their commits to a login. Emails are used for matching and omitted from downloaded reports." />
               <Field label="Excluded full commit SHAs" name="commitShas" multiline />

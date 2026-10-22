@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Repocat',
+  title: 'RepoLight',
+  icons: { icon: { url: '/repolight-mark.svg', type: 'image/svg+xml' } },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

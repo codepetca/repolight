@@ -105,14 +105,10 @@ button:disabled {
 .brand-name { margin: 0; font: inherit; }
 
 .brand-mark {
-  display: inline-grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--text);
-  color: white;
-  font-size: 14px;
+  display: block;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
 }
 
 .page {

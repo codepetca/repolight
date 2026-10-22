@@ -25,7 +25,7 @@ The standalone `/reports` page works without a database. Synthetic examples rema
 
 Keep the hub `/Users/stew/Repos/repocat` on main. New implementation branches use a worktree under `/Users/stew/.codex/worktrees/repocat/<branch-slug>`, based on the intended remote revision. Inspect existing worktrees and preserve active/uncommitted work before creating or retiring one. Do not switch another writer's checkout or share staging/commit operations concurrently.
 
-There is no canonical shared Repocat environment file configured. Create a private worktree-local `.env.local` only when needed and with a known local/test target; never copy credentials from an unrelated project. Install dependencies in each worktree rather than symlinking node_modules.
+There is no canonical shared RepoLight environment file configured. Create a private worktree-local `.env.local` only when needed and with a known local/test target; never copy credentials from an unrelated project. Install dependencies in each worktree rather than symlinking node_modules.
 
 Before handoff: run checks appropriate to the change, `git diff --check`, inspect the intended diff and report untested flows. Independent review should inspect a stable local revision for behavioral/contract changes. Publication and merge require user authorization; this repository has no standing deployment or hosted-migration authority.
 
