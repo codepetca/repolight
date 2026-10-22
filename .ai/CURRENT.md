@@ -18,4 +18,4 @@ Important existing limits: Next 14 dependency advisories; fixed fallback session
 
 Hub: `/Users/stew/Repos/repocat` on main. Active recovery worktree: `/Users/stew/.codex/worktrees/repocat/recover-report-contract`, branch `codex/recover-report-contract`. No push/publication authorized. Local receipts are ignored under `.verification/recovery`.
 
-Branding uses one `REPOCAT_TAGLINE` and shared Brand component across login, reports and authenticated headers. The product demo button and client fixture imports are removed; synthetic fixtures remain in tests/CLI. Sign-in retains its accessible form name and action button without a large mode heading.
+Branding uses the shared Brand component across login, reports and authenticated headers, with no tagline. The product demo button and client fixture imports are removed; synthetic fixtures remain in tests/CLI. Sign-in retains its accessible form name and action button without a large mode heading.
