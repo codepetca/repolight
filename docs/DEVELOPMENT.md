@@ -19,6 +19,8 @@ The Next app builds without database credentials. Database-backed registration, 
 
 For an app smoke check, run `npm run dev -- --hostname 127.0.0.1 --port 3047` with a randomly generated `SESSION_SECRET` in the process environment. Keep local secrets outside Git. Login-page rendering does not establish that authentication/database workflows work.
 
+The standalone `/reports` page and its fictional demo work without a database. Live public collection uses the development/loopback-only `POST /api/reports/analyze` route. Production builds display the report UI/demo but reject live collection. See `PUBLIC-REPORTS.md`; do not relax this gate as a substitute for hosted authentication, usage controls and the existing deployment blockers.
+
 ## Branch ownership
 
 Keep the hub `/Users/stew/Repos/repocat` on main. New implementation branches use a worktree under `/Users/stew/.codex/worktrees/repocat/<branch-slug>`, based on the intended remote revision. Inspect existing worktrees and preserve active/uncommitted work before creating or retiring one. Do not switch another writer's checkout or share staging/commit operations concurrently.

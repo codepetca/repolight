@@ -1,14 +1,14 @@
 # Repocat SaaS revival plan
 
-Date: 2026-10-21 · Status: Phase 0/1 authorized; later phases proposed
+Date: 2026-10-21 · Status: recovery/contract delivered; local public-report slice authorized
 
-Current instruction: recover the existing project and define the report contract using public repos. GitHub App/private-repo work is deferred. See [recovery status](RECOVERY.md) and [implemented contract](REPORT-CONTRACT.md) for current delivery and limits.
+Current instruction: build public-repo analysis with metrics, graphs and rule-based feedback, reusing the existing collector. AI is optional later; GitHub App/private-repo work is deferred. The local database-free slice is documented in [PUBLIC-REPORTS.md](PUBLIC-REPORTS.md). Hosted customer access, durable jobs, persistence and Pika integration remain proposed work.
 
 ## Product direction
 
 Revive Repocat as a standalone service that helps teachers understand how a coding project developed and give specific, evidence-linked feedback. Pika is the first integration; teachers can also use Repocat directly.
 
-The first release combines the report designed in this conversation with reliable repository collection, customer isolation and background processing. Git-derived measurements are calculated in code. AI interprets evidence and drafts comments. Teachers control assessment and feedback publication.
+The first release combines the report designed in this conversation with reliable repository collection, customer isolation and background processing. Git-derived measurements and transparent feedback rules are calculated in code. Optional future AI can interpret selected evidence and draft contextual comments. Teachers control assessment and feedback publication.
 
 Planning assumptions: invite-only pilot before a paid public launch; GitHub repositories first; Java/Zero examples first; one student-owned repository per submission as the primary flow. Other text-based projects can receive generic history metrics, with the supported scope stated. Retain the existing Next.js, Neon and Drizzle foundation unless the recovery audit identifies a concrete reason to change it. Identity, job hosting, model provider and payment-provider choices are implementation decisions to resolve before their respective phases.
 
@@ -96,7 +96,7 @@ Every report declares complete, partial or unavailable collection coverage. Pagi
 
 ## Analysis pipeline
 
-`Accept request → authorize tenant/repo → pin snapshot → collect evidence → compute metrics → generate AI interpretation → validate citations/output → persist report → notify consumer`
+`Accept request → authorize tenant/repo → pin snapshot → collect evidence → compute metrics + rule feedback → optionally generate AI interpretation → validate citations/output → persist report → notify consumer`
 
 Use one pipeline for standalone UI and Pika. Standalone settings supply the same project context as the integration. Persist an immutable report/facts snapshot, with separate teacher edits and published-feedback records.
 
@@ -187,6 +187,6 @@ These decisions do not block writing the contract and reproducing the current ba
 
 ## Immediate next milestone
 
-Complete Phase 0 and Phase 1 before feature expansion: a reproducible Repocat baseline, a versioned report/analysis contract, verified metric fixtures and a short decision record for the required platform choices. The first working vertical slice is then one authorized repository producing the complete standalone report through a tenant-scoped durable job. Pika uses that same path after the standalone slice works.
+Recovery and the report contract are delivered. The current slice is one public repository producing metrics, graphs and editable rule feedback locally without a database or AI. Acceptance requires snapshot-pinned collection with honest limits, fixture/HTTP/component tests, real-browser checks and a public-repo smoke test. It does not establish hosted SaaS readiness. The next service milestone is tenant-scoped durable collection and saved report versions; Pika uses that shared service after its access and job lifecycle are verified.
 
 This document authorizes no implementation, publication, deployment, paid-provider activation, credential changes or external communication by itself. Those actions follow the user's execution instructions and the applicable project workflow.

@@ -2,9 +2,11 @@
 
 Recovered from main `626d7e9da7702bcd791ebb59f947937293907b0a`.
 
-User authorized recovery and report-contract definition; public repos only. GitHub App setup is deferred. Standalone report UI, live AI, durable jobs, SaaS tenant isolation and the Pika integration are subsequent phases in `docs/REVIVAL-PLAN.md`.
+User authorized recovery/contract work, followed by public repo analysis with metrics, graphs and rule-based feedback. Public repos only; GitHub App setup and AI remain deferred. Durable jobs, hosted tenant isolation, saved reports and Pika integration remain later phases.
 
-Current work reuses Next.js/Neon/Drizzle and existing v1 normalized events/API. A lockfile repair restores missing optional native dependencies; direct versions are pinned to the existing lock resolutions. The new pure `src/lib/report` module provides a strict v2 report schema and deterministic builder, plus a fictional Sky Hop fixture and offline `npm run report:sample` command. No v2 HTTP route or database migration is introduced.
+Current work reuses Next.js/Neon/Drizzle and existing v1 normalized events/API. The pure `src/lib/report` module provides the v2 report schema/builder and fictional Sky Hop fixture. `/reports` adds the standalone form, demo, timeline, heatmap, commit evidence, editable rule feedback and JSON export. `/api/reports/analyze` is deliberately development/loopback-only, requires same-origin JSON, bounds input and permits one in-flight collection per process. It needs no database. It is not the proposed tenant-scoped v2 SaaS API. See `docs/PUBLIC-REPORTS.md` for the request/response contract and limits.
+
+The existing GitHubClient now has a separate snapshot-pinned public collection method with bounded pagination/concurrency and explicit partial coverage; legacy v1 collection behavior remains separate. Rule feedback is a versioned sidecar to measured facts; AI interpretation remains not_requested. No database migration, AI call, push, deployment or account change is part of this phase.
 
 Read `docs/RECOVERY.md` for verified checks, existing deployment blockers and runtime limits. `docs/REPORT-CONTRACT.md` defines metric semantics and the trusted-evidence boundary; the legacy collector does not yet establish every v2 coverage/snapshot guarantee.
 

@@ -10,6 +10,7 @@ export function AppHeader({ email }: { email: string }) {
           <span>Repocat</span>
         </Link>
         <nav className="nav-links" aria-label="Primary">
+          <Link href="/reports">Reports</Link>
           <Link href="/classrooms">Classrooms</Link>
           <Link href="/">Runs</Link>
         </nav>
