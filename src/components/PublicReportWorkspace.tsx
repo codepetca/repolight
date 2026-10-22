@@ -19,13 +19,19 @@ export function PublicReportWorkspace() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
+  const [view, setView] = useState<'summary' | 'evidence'>('summary')
+  const [configurationOpen, setConfigurationOpen] = useState(true)
   const resultHeading = useRef<HTMLHeadingElement>(null)
-  useEffect(() => { if (result) resultHeading.current?.focus() }, [result])
+  const configurationHeading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => { if (result) resultHeading.current?.focus() }, [result, view])
+  useEffect(() => { if (result && configurationOpen) configurationHeading.current?.focus() }, [configurationOpen, result])
 
   function show(analysis: PublicAnalysisResult, fictional: boolean, logins: string[]) {
     setResult({ analysis, fictional, logins })
     setFeedback(analysis.ruleFeedback.feedbackDraft)
     setActionStatus('')
+    setView('summary')
+    setConfigurationOpen(false)
   }
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
@@ -79,15 +85,15 @@ export function PublicReportWorkspace() {
   }
 
   return <main className={styles.workspace}>
-    <div className={styles.intro}>
+    <div className={styles.intro} hidden={Boolean(result)}>
       <p className={styles.eyebrow}>REPOSITORY REPORTS</p>
       <h1>Make progress visible.</h1>
       <p>Review the public commit evidence, understand its limits, and prepare feedback in your own words.</p>
       <span className="badge">Database-free preview · live analysis in local development</span>
       <p className={styles.modeNotice}>Live collection is available only from the local development server on a loopback address. The fictional demo works offline in this page.</p>
     </div>
-    <section className={styles.panel} aria-labelledby="configure-heading">
-      <div className={styles.sectionHead}><div><h2 id="configure-heading">Start with a repository</h2><p>One public repository, one explicit student identity, one review period.</p></div>
+    <section className={styles.panel} aria-labelledby="configure-heading" hidden={Boolean(result) && !configurationOpen}>
+      <div className={styles.sectionHead}><div><h2 id="configure-heading" ref={configurationHeading} tabIndex={-1}>Start with a repository</h2><p>One public repository, one explicit student identity, one review period.</p></div>
         <button className="button secondary" type="button" onClick={demo} disabled={loading}>Explore fictional demo</button></div>
       <form onSubmit={analyze}>
         <fieldset disabled={loading} className={styles.fieldset}>
@@ -121,11 +127,29 @@ export function PublicReportWorkspace() {
     {result ? <div className={styles.results}>
       <section className={styles.panel} aria-labelledby="report-heading">
         <div className={styles.sectionHead}><div><p className={styles.eyebrow}>{result.fictional ? 'FICTIONAL DEMO · SYNTHETIC EVIDENCE' : 'PUBLIC REPOSITORY SNAPSHOT'}</p>
-          <h2 ref={resultHeading} tabIndex={-1} id="report-heading">{result.fictional ? 'Fictional Sky Hop example' : result.analysis.report.repository.url.replace('https://github.com/', '')}</h2></div>
-          <button type="button" className="button secondary" onClick={download}>Download report JSON</button></div>
-        <ReportMetadata result={result} />
+          <h2 ref={resultHeading} tabIndex={-1} id="report-heading">{result.fictional ? 'Fictional Sky Hop example' : result.analysis.report.repository.url.replace('https://github.com/', '')}</h2>
+          <p>{view === 'summary' ? 'Report summary' : 'Report evidence'} · {result.analysis.report.repository.branch} · {result.logins.join(', ')}</p>
+          <p>{localDate(result.analysis.report.period.startAt, result.analysis.report.period.timezone)} – {localDate(new Date(Date.parse(result.analysis.report.period.endAt) - 1).toISOString(), result.analysis.report.period.timezone)} · {result.analysis.report.period.timezone}</p></div>
+          <div className={styles.actions}>
+            <button type="button" className="button" onClick={() => setView(view === 'summary' ? 'evidence' : 'summary')}>{view === 'summary' ? 'View evidence' : 'Back to summary'}</button>
+            <button type="button" className="button secondary" onClick={() => setConfigurationOpen(!configurationOpen)}>{configurationOpen ? 'Hide configuration' : 'Analyze another repository'}</button>
+            <button type="button" className="button secondary" onClick={download}>Download report JSON</button>
+          </div></div>
       </section>
+      {view === 'summary' ? <>
       <Metrics report={result.analysis.report} />
+      <SummaryStats result={result} />
+      <div className={styles.summaryGrid}>
+        <div className={styles.summaryColumn}><WorkflowFindings result={result} /><SummaryLimitations result={result} /></div>
+        <section className={styles.panel} aria-labelledby="feedback-heading"><div className={styles.sectionHead}><div><h2 id="feedback-heading">Feedback draft</h2><p>Edit this rule-based draft before sharing. Your edits remain separate from the original.</p></div></div>
+          <label htmlFor="teacher-feedback" className={styles.feedbackLabel}>Teacher feedback</label>
+          <textarea id="teacher-feedback" className={styles.feedback} value={feedback} onChange={event => { setFeedback(event.target.value); setActionStatus('') }} />
+          <div className={styles.actions}><button className="button" onClick={copy} type="button">Copy feedback</button><button className="button secondary" onClick={() => { setFeedback(result.analysis.ruleFeedback.feedbackDraft); setActionStatus('Rule draft restored.') }} type="button">Restore rule draft</button></div>
+          <p className={styles.muted} role="status">{actionStatus || 'Edits stay in this page until you copy or download them.'}</p>
+        </section>
+      </div>
+      </> : <>
+      <section className={styles.panel} aria-labelledby="collection-heading"><h2 id="collection-heading">Source & collection details</h2><ReportMetadata result={result} /></section>
       <Timeline report={result.analysis.report} />
       <Heatmap report={result.analysis.report} />
       <CommitEvidence result={result} />
@@ -136,14 +160,52 @@ export function PublicReportWorkspace() {
         </article>)}</div>
         {!result.analysis.ruleFeedback.observations.length && <p>No rule observations were produced for the available evidence.</p>}
       </section>
-      <section className={styles.panel} aria-labelledby="feedback-heading"><div className={styles.sectionHead}><div><h2 id="feedback-heading">Review & make it yours</h2><p>Your edits remain separate from the original rule draft in the download.</p></div></div>
-        <label htmlFor="teacher-feedback" className={styles.feedbackLabel}>Teacher feedback</label>
-        <textarea id="teacher-feedback" className={styles.feedback} value={feedback} onChange={event => { setFeedback(event.target.value); setActionStatus('') }} />
-        <div className={styles.actions}><button className="button" onClick={copy} type="button">Copy feedback</button><button className="button secondary" onClick={() => { setFeedback(result.analysis.ruleFeedback.feedbackDraft); setActionStatus('Rule draft restored.') }} type="button">Restore rule draft</button></div>
-        <p className={styles.muted} role="status">{actionStatus || 'Review evidence and wording before sharing. Edits stay in this page until you copy or download them.'}</p>
-      </section>
+      <button type="button" className="button secondary" onClick={() => setView('summary')}>Return to summary & feedback</button>
+      </>}
     </div> : <section className={styles.empty} aria-label="Report preview"><span className={styles.emptyIcon}>R</span><h2>Evidence first. Feedback second.</h2><p>Analyze a public repository or explore the fictional Sky Hop example to see the timeline, file activity and a reviewable feedback draft.</p></section>}
   </main>
+}
+
+function localDate(instant: string, timezone: string) {
+  return new Intl.DateTimeFormat('en-CA', {timeZone:timezone, dateStyle:'medium'}).format(new Date(instant))
+}
+
+function SummaryStats({result}: {result: DisplayResult}) {
+  const {report, ruleFeedback: {summary}} = result.analysis
+  const available = report.metrics.studentCommits.status !== 'unavailable'
+  const dated = available && (report.commits.length === 0 || report.timeline.length > 0)
+  return <dl className={styles.summaryStats}>
+    <div><dt>Observed active days</dt><dd>{dated ? summary.activeDays : 'Unavailable'}</dd><small>{report.metrics.studentCommits.status === 'partial' || report.activity.undatedCommitCount ? 'Partial evidence · dated commits only' : 'Local dates with included commits'}</small></div>
+    <div><dt>Generic-message share</dt><dd>{available && summary.messageCount ? `${Math.round(summary.genericMessageCount / summary.messageCount * 100)}% · ${summary.genericMessageCount} / ${summary.messageCount} messages` : 'Unavailable'}</dd><small>{report.metrics.studentCommits.status === 'partial' ? 'Partial evidence · exact generic-label rules' : 'Exact generic-label rules; not a grammar score'}</small></div>
+  </dl>
+}
+
+function WorkflowFindings({result}: {result: DisplayResult}) {
+  const findings = result.analysis.ruleFeedback.observations.filter(item => item.kind !== 'limitation')
+    .sort((a,b) => Number(a.kind === 'strength') - Number(b.kind === 'strength'))
+  return <section className={styles.panel} aria-labelledby="findings-heading"><h2 id="findings-heading" className={styles.summaryTitle}>Workflow findings</h2>
+    <p className={styles.muted}>Rule-based observations · teacher review</p>
+    {findings.length ? <ul className={styles.findings}>{findings.slice(0,3).map(item => <li key={item.id}>{item.text}</li>)}</ul> : <p>No workflow findings can be supported by the included evidence.</p>}
+    {findings.length > 3 && <p className={styles.muted}>{findings.length - 3} more findings in View evidence.</p>}
+  </section>
+}
+
+function SummaryLimitations({result}: {result: DisplayResult}) {
+  const {report, ruleFeedback} = result.analysis
+  const limitations: string[] = []
+  if (report.coverage.history !== 'complete') limitations.push(`History collection is ${report.coverage.history}; observed activity may be incomplete.`)
+  if (report.coverage.files !== 'complete') limitations.push(`File evidence is ${report.coverage.files}; change totals and missing heatmap cells are uncertain.`)
+  if (report.baseline.status !== 'applied') limitations.push('Starter history has not been reviewed; inherited changes may remain in counts.')
+  if (!report.scheduledProjectDates?.length) limitations.push('Project schedule is unavailable; density and scheduled-day coverage cannot be calculated.')
+  if (report.attribution.unmatchedCommitCount) limitations.push(`${report.attribution.unmatchedCommitCount} commit(s) did not match the configured student identity.`)
+  if (report.activity.undatedCommitCount) limitations.push(`${report.activity.undatedCommitCount} included commit(s) have no author date; dates and period membership are uncertain.`)
+  limitations.push(...report.coverage.notes.filter(note => note.includes('merge commit(s) omitted')))
+  const noCommits = ruleFeedback.observations.find(item => item.ruleId === 'no-commits')
+  if (noCommits) limitations.push(noCommits.text)
+  return <section className={styles.panel} aria-labelledby="limitations-heading"><h2 id="limitations-heading" className={styles.summaryTitle}>Limitations</h2>
+    {limitations.length > 0 && <ul className={styles.notes}>{limitations.map((item,index) => <li key={index}>{item}</li>)}</ul>}
+    <p className={styles.muted}>Commit time is not push time. Counts do not establish effort, attendance, understanding or AI authorship. Full source, exclusions and collection notes are in View evidence.</p>
+  </section>
 }
 
 function Field({ label, name, hint, multiline, ...props }: { label: string; name: string; hint?: string; multiline?: boolean; required?: boolean; type?: string; placeholder?: string; defaultValue?: string }) {

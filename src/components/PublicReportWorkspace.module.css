@@ -25,6 +25,15 @@
 .checkbox input { accent-color: var(--accent); margin-top: 4px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .results { display: grid; gap: 22px; margin-top: 30px; }
+.summaryGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.summaryColumn { display: grid; gap: 20px; min-width: 0; }
+.summaryTitle { margin: 0; font-size: 20px; letter-spacing: -.025em; }
+.summaryStats { display: flex; flex-wrap: wrap; gap: 16px 40px; margin: 0; padding: 14px 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.summaryStats dt { color: var(--muted); font-size: 12px; }
+.summaryStats dd { margin: 6px 0; font-size: 17px; font-weight: 700; }
+.summaryStats small { color: var(--muted); font-size: 11px; }
+.findings { padding-left: 20px; margin-bottom: 0; font-size: 13px; line-height: 1.65; }
+.findings li + li { margin-top: 12px; }
 .metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; gap: 20px; font-size: 12px; line-height: 1.65; }
 .metadata dt { font-weight: 700; color: var(--muted); }
 .metadata dd { margin: 4px 0 0; overflow-wrap: anywhere; }
@@ -66,5 +75,5 @@
 .empty h2 { font-size: 20px; letter-spacing: -.025em; }
 .empty p { color: var(--muted); line-height: 1.7; max-width: 570px; font-size: 14px; margin: 0 auto; }
 .emptyIcon { display: inline-grid; place-items: center; width: 42px; height: 42px; background: var(--accent-soft); border-radius: 12px; color: var(--accent-strong); font-size: 19px; font-weight: 750; }
-@media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sectionHead { flex-wrap: wrap; } }
+@media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sectionHead { flex-wrap: wrap; } .summaryGrid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .workspace { width: calc(100% - 24px); padding-top: 28px; } .panel { padding: 18px; border-radius: 10px; } .formGrid, .metadata { grid-template-columns: 1fr; } .metrics { gap: 10px; } .metric { padding: 16px; } .metric strong { font-size: 30px; } .intro > p:not(.eyebrow) { font-size: 15px; } .actions { align-items: stretch; flex-direction: column; } .actions button { width: 100%; } }
