@@ -33,7 +33,7 @@ export function PublicReportWorkspace() {
     } catch { /* Toronto is the fallback, including daylight saving changes. */ }
     const endDate = formatDayInZone(new Date().toISOString(),timezone)
     const first = new Date(`${endDate}T12:00:00Z`)
-    first.setUTCDate(first.getUTCDate() - 29)
+    first.setUTCDate(first.getUTCDate() - 59)
     setDates({timezone,startDate:first.toISOString().slice(0,10),endDate})
   }, [])
   const resultHeading = useRef<HTMLHeadingElement>(null)
@@ -115,7 +115,7 @@ export function PublicReportWorkspace() {
             <Field label="Student GitHub username" name="githubLogins" required placeholder="student-login" value={studentLogin} onChange={event => {setStudentLogin(event.target.value);setLoginEdited(Boolean(event.target.value))}} hint="Suggested from the repo owner. Change it for shared or organization repos." />
           </div>
           <details className={styles.advanced}><summary>Options</summary>
-            <p className={styles.muted}>Last 30 days by default. Dates select commits to review; they do not schedule a task.</p>
+            <p className={styles.muted}>Last 60 days by default. Dates select commits to review; they do not schedule a task.</p>
             <div className={styles.formGrid}>
               <Field label="Branch" name="branch" defaultValue="main" />
               <Field label="Timezone" name="timezone" required value={dates.timezone} onChange={event => setDates({...dates,timezone:event.target.value})} />
@@ -135,7 +135,7 @@ export function PublicReportWorkspace() {
             </div>
             <p className={styles.muted}>Separate entries with commas or newlines. Editing a supplied file is included unless explicitly excluded.</p>
           </details>
-          <div className={styles.actions}><button className="button" type="submit">{loading ? 'Analyzing…' : 'Analyze public repository'}</button><span className={styles.muted}>Last 30 days by default</span></div>
+          <div className={styles.actions}><button className="button" type="submit">{loading ? 'Analyzing…' : 'Analyze public repository'}</button><span className={styles.muted}>Last 60 days by default</span></div>
         </fieldset>
       </form>
       {loading && <p role="status">Pinning the branch snapshot and collecting evidence. This may take a moment.</p>}

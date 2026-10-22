@@ -8,7 +8,7 @@ import { skyHopInput } from '../../fixtures/reports/sky-hop'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('PublicReportWorkspace', () => {
-  it('starts with a compact form, main branch and a browser-local 30-day period', async () => {
+  it('starts with a compact form, main branch and a browser-local 60-day period', async () => {
     vi.useFakeTimers({toFake:['Date']})
     vi.setSystemTime(new Date('2026-10-22T01:00:00Z'))
     const resolved = Intl.DateTimeFormat.prototype.resolvedOptions
@@ -23,14 +23,14 @@ describe('PublicReportWorkspace', () => {
     const options = screen.getByText('Options').closest('details')!
     expect(options.open).toBe(false)
     expect((screen.getByLabelText('Timezone') as HTMLInputElement).value).toBe('Pacific/Auckland')
-    expect((screen.getByLabelText('Start date') as HTMLInputElement).value).toBe('2026-09-23')
+    expect((screen.getByLabelText('Start date') as HTMLInputElement).value).toBe('2026-08-24')
     expect((screen.getByLabelText('End date (inclusive)') as HTMLInputElement).value).toBe('2026-10-22')
     fireEvent.change(screen.getByLabelText('Public GitHub repository'),{target:{value:input.repositoryUrl}})
     expect((screen.getByLabelText('Student GitHub username') as HTMLInputElement).value).toBe('sample-student')
     fireEvent.click(screen.getByRole('button',{name:'Analyze public repository'}))
     await screen.findByRole('heading',{name:'Workflow findings'})
     const request = JSON.parse(fetchMock.mock.calls[0][1].body)
-    expect(request).toMatchObject({branch:'main',githubLogins:['sample-student'],period:{timezone:'Pacific/Auckland',startAt:'2026-09-22T12:00:00.000Z',endAt:'2026-10-22T11:00:00.000Z'}})
+    expect(request).toMatchObject({branch:'main',githubLogins:['sample-student'],period:{timezone:'Pacific/Auckland',startAt:'2026-08-23T12:00:00.000Z',endAt:'2026-10-22T11:00:00.000Z'}})
   })
 
   it('updates suggested owners while preserving an explicitly entered student username', () => {

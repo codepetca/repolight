@@ -8,7 +8,7 @@ Current work reuses Next.js/Neon/Drizzle and existing v1 normalized events/API. 
 
 Reports now open on a concise summary with core/observed metrics, workflow findings, limitations and editable feedback. Detailed graphs, commits and metadata are behind “View evidence”; switching views preserves edits and JSON still exports the complete report. This is a presentation change; collection, metrics and feedback rules remain unchanged.
 
-The entry form is compact: tagline, public repo URL and editable student username suggested from the owner. Options holds dates/timezone/branch/schedule/exclusions. UI defaults to main, last 30 local calendar dates and browser timezone with Toronto fallback; dates are analysis filters, not scheduling. API defaults remain unchanged.
+The entry form is compact: tagline, public repo URL and editable student username suggested from the owner. Options holds dates/timezone/branch/schedule/exclusions. UI defaults to main, last 60 local calendar dates and browser timezone with Toronto fallback; dates are analysis filters, not scheduling. API defaults remain unchanged.
 
 The existing GitHubClient now has a separate snapshot-pinned public collection method with bounded pagination/concurrency and explicit partial coverage; legacy v1 collection behavior remains separate. Rule feedback is a versioned sidecar to measured facts; AI interpretation remains not_requested. No database migration, AI call, push, deployment or account change is part of this phase.
 
