@@ -183,6 +183,7 @@ function IntegrationKeys() {
   const [token,setToken] = useState('')
   const [message,setMessage] = useState('')
   const [busy,setBusy] = useState(false)
+  const [allowErasure,setAllowErasure] = useState(false)
   const generation = useRef(0)
   async function load() {
     try {setKeys(keySchema.array().parse((await serviceFetch('/workspace/keys')).keys));setMessage('')}
@@ -193,7 +194,7 @@ function IntegrationKeys() {
     const form = new FormData(event.currentTarget)
     const current = ++generation.current
     try {
-      const payload = await serviceFetch('/workspace/keys',json('POST',{label:String(form.get('label') || '').trim(),scopes:['analyses:create','analyses:read'],installationRef:String(form.get('installationRef') || '').trim() || null}))
+      const payload = await serviceFetch('/workspace/keys',json('POST',{label:String(form.get('label') || '').trim(),scopes:allowErasure ? ['analyses:create','analyses:read','analyses:erase'] : ['analyses:create','analyses:read'],installationRef:String(form.get('installationRef') || '').trim() || null}))
       const key = keySchema.parse(payload.key)
       if (typeof payload.token !== 'string' || !payload.token) throw new ServiceError('invalid_response')
       if (generation.current !== current) return
@@ -213,8 +214,8 @@ function IntegrationKeys() {
   }
   return <details className={styles.advanced} onToggle={event => {if (event.currentTarget.open) void load(); else {generation.current += 1;setToken('')}}}>
     <summary>Integration keys</summary>
-    <p>Keys can create and read analyses. They cannot edit teacher feedback. An installation reference restricts the key to that integration.</p>
-    <form onSubmit={create}><fieldset disabled={busy} className={styles.fieldset}><div className={styles.formGrid}><div className={styles.field}><label htmlFor="key-label">Key label</label><input id="key-label" name="label" required maxLength={100} /></div><div className={styles.field}><label htmlFor="key-installation">Installation reference (optional)</label><input id="key-installation" name="installationRef" pattern="[A-Za-z0-9._~-]+" maxLength={128} /></div></div><button className="button secondary" type="submit">Create integration key</button></fieldset></form>
+    <p>Keys can create and read analyses. An installation reference restricts the key to that integration.</p>
+    <form onSubmit={create}><fieldset disabled={busy} className={styles.fieldset}><div className={styles.formGrid}><div className={styles.field}><label htmlFor="key-label">Key label</label><input id="key-label" name="label" required maxLength={100} /></div><div className={styles.field}><label htmlFor="key-installation">{allowErasure ? 'Installation reference (required for Pika cleanup)' : 'Installation reference (optional)'}</label><input id="key-installation" name="installationRef" required={allowErasure} pattern="[A-Za-z0-9._~-]+" maxLength={128} /></div></div><label><input type="checkbox" checked={allowErasure} onChange={event => setAllowErasure(event.target.checked)} /> Allow Pika to remove its report copies</label>{allowErasure && <p>Pika can permanently remove reports for this installation when their submission data is deleted.</p>}<button className="button secondary" type="submit">Create integration key</button></fieldset></form>
     {token && <div><p>Copy this key now. It is shown only once and disappears when you close these options.</p><div className={styles.field}><label htmlFor="integration-token">New integration key</label><input id="integration-token" readOnly value={token} autoComplete="off" /></div><div className={styles.actions}><button className="button secondary" type="button" onClick={copyToken}>Copy integration key</button><button className="button secondary" type="button" onClick={() => setToken('')}>Hide integration key</button></div></div>}
     <button className="button secondary" type="button" onClick={load}>Refresh keys</button>
     <ul className={styles.contributors}>{keys.map(key => <li key={key.id}><span>{key.label} · {key.revokedAt ? 'Revoked' : 'Not revoked'}{key.installationRef && ` · ${key.installationRef}`}{key.expiresAt && ` · Expires ${key.expiresAt}`}</span>{!key.revokedAt && <button className="button secondary" type="button" disabled={busy} onClick={() => revoke(key.id)}>Revoke {key.label}</button>}</li>)}</ul>

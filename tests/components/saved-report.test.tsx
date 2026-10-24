@@ -206,4 +206,23 @@ describe('SavedReportWorkspace',()=>{
     expect(JSON.parse(String(create[1]?.body))).toEqual({label:'Fixture integration',installationRef:'fixture-school',scopes:['analyses:create','analyses:read']})
     expect(localStorage.length).toBe(0)
   })
+  it('requires an installation and explicit opt-in for Pika report cleanup permission',async()=>{
+    const fetchMock = fixtureFetch((path,options)=>{
+      if (path === '/api/v2/workspace/keys' && options.method === 'POST') return response({key:{id:secondId,label:'Pika',scopes:['analyses:create','analyses:read','analyses:erase'],installationRef:'pika-fixture',expiresAt:null,revokedAt:null,createdAt:timestamp},token:'fixture-only-cleanup-token'},201)
+    })
+    render(<SavedReportWorkspace />)
+    await screen.findByRole('button',{name:'Open 10000000'})
+    const details = screen.getByText('Integration keys').closest('details')!
+    await act(async()=>{details.open = true;fireEvent(details,new Event('toggle'))})
+    const optIn = screen.getByRole('checkbox',{name:'Allow Pika to remove its report copies'}) as HTMLInputElement
+    expect(optIn.checked).toBe(false)
+    fireEvent.click(optIn)
+    expect((screen.getByLabelText('Installation reference (required for Pika cleanup)') as HTMLInputElement).required).toBe(true)
+    fireEvent.change(screen.getByLabelText('Key label'),{target:{value:'Pika'}})
+    fireEvent.change(screen.getByLabelText('Installation reference (required for Pika cleanup)'),{target:{value:'pika-fixture'}})
+    fireEvent.submit(screen.getByLabelText('Key label').closest('form')!)
+    await screen.findByDisplayValue('fixture-only-cleanup-token')
+    const issued = fetchMock.mock.calls.find(([path,options])=>path === '/api/v2/workspace/keys' && options?.method === 'POST')!
+    expect(JSON.parse(String(issued[1]?.body))).toEqual({label:'Pika',installationRef:'pika-fixture',scopes:['analyses:create','analyses:read','analyses:erase']})
+  })
 })

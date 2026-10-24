@@ -1,7 +1,7 @@
 import type { PublicRepositoryBundle, PublicRepositoryRequest } from '@/lib/report/bundle-contract'
-import type { AnalysisErrorCode, AnalysisResult, AnalysisStatus, ClientBinding, FeedbackEdit } from './contract'
+import type { AnalysisErrorCode, AnalysisResult, AnalysisStatus, ClientBinding, FeedbackEdit, ErasureRequest, ErasureReceipt } from './contract'
 
-export type ApiKeyScope = 'analyses:create' | 'analyses:read'
+export type ApiKeyScope = 'analyses:create' | 'analyses:read' | 'analyses:erase'
 export interface WorkspaceRecord { id: string; ownerUserId: string; customerRef: string; createdAt: string }
 /** Server-only record. Never return this from a route or serialize it into UI props. */
 export interface ApiKeyRecord {
@@ -41,9 +41,11 @@ export type EnqueueAnalysisResult =
   | { kind: 'replayed'; job: StoredJob }
   | { kind: 'conflict' }
   | { kind: 'unauthorized' }
+  | { kind: 'subject_erased' }
   | { kind: 'limited'; reason: 'daily_limit' | 'queue_limit' }
 export interface LeaseIdentity { jobId: string; leaseToken: string; leaseGeneration: number }
 export interface ServiceStore {
+  eraseSubject(input: { workspaceId: string; createdByKeyId?: string | null; request: ErasureRequest }): Promise<{ kind: 'erased'; receipt: ErasureReceipt } | { kind: 'conflict' | 'unauthorized' }>;
   getOrCreateWorkspace(ownerUserId: string): Promise<WorkspaceRecord>;
   getWorkspaceForOwner(ownerUserId: string, workspaceId?: string): Promise<WorkspaceRecord | null>;
   issueApiKey(workspaceId: string, input: { id: string; label: string; secretHash: string; scopes: ApiKeyScope[]; installationRef?: string | null; expiresAt?: string | null }): Promise<ApiKeyMetadata>;

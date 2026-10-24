@@ -1,15 +1,30 @@
 import { z } from 'zod'
 import { makeRepositoryTarget } from '@/lib/engine/repo'
-import { analysisIdSchema, analysisResultSchema, createAnalysisRequestSchema, feedbackEditRequestSchema, serviceRefSchema, toAnalysisStatus } from './contract'
+import { connectionMetadataSchema, analysisIdSchema, analysisResultSchema, erasureRequestSchema, erasureReceiptSchema, createAnalysisRequestSchema, feedbackEditRequestSchema, serviceRefSchema, toAnalysisStatus } from './contract'
 import { authenticateService, newApiCredential, safeApiKeyMetadata, type ReadSession, type ServicePrincipal } from './auth'
 import { digestJson, readServiceJson, serviceHandle, serviceJson, ServiceHttpError } from './http'
 import type { ServiceStore, StoredJob } from './store-types'
 
-const keyRequestSchema = z.object({ label: z.string().trim().min(1).max(100), scopes: z.array(z.enum(['analyses:create', 'analyses:read'])).min(1).max(2), installationRef: serviceRefSchema.nullable().optional(), expiresAt: z.iso.datetime({ offset: true }).nullable().optional() }).strict()
+const keyRequestSchema = z.object({ label: z.string().trim().min(1).max(100), scopes: z.array(z.enum(['analyses:create', 'analyses:read', 'analyses:erase'])).min(1).max(3), installationRef: serviceRefSchema.nullable().optional(), expiresAt: z.iso.datetime({ offset: true }).nullable().optional() }).strict().superRefine(validateEraseKeyBinding)
+function validateEraseKeyBinding(value: { scopes: string[]; installationRef?: string | null }, context: z.RefinementCtx) {
+  if (value.scopes.includes('analyses:erase') && !value.installationRef) context.addIssue({ code: 'custom', path: ['installationRef'], message: 'Erasure permission requires an installation binding.' })
+}
 const canReadJob = (principal: ServicePrincipal, job: StoredJob) => principal.kind === 'session' || principal.installationRef === null || job.clientBinding?.installationRef === principal.installationRef
 
 export function createServiceApi(store: ServiceStore, readSession: ReadSession) {
   return {
+    connection: (request: Request) => serviceHandle(async () => {
+      const principal = await authenticateService(request, store, readSession)
+      return serviceJson(connectionMetadataSchema.parse({ schemaVersion: '1.0', workspaceRef: principal.workspace.customerRef, installationRef: principal.kind === 'key' ? principal.installationRef : null, scopes: principal.kind === 'key' ? principal.scopes : ['analyses:create', 'analyses:read', 'analyses:erase'] }))
+    }),
+    erase: (request: Request) => serviceHandle(async () => {
+      const body = erasureRequestSchema.parse(await readServiceJson(request))
+      const principal = await authenticateService(request, store, readSession, { mutation: true, scope: 'analyses:erase' })
+      if (principal.kind === 'key' && principal.installationRef !== body.installationRef) throw new ServiceHttpError('installation_binding_mismatch', 403)
+      const result = await store.eraseSubject({ workspaceId: principal.workspace.id, createdByKeyId: principal.kind === 'key' ? principal.keyId : null, request: body })
+      if (result.kind !== 'erased') throw new ServiceHttpError(result.kind === 'conflict' ? 'operation_conflict' : 'unauthorized', result.kind === 'conflict' ? 409 : 401)
+      return serviceJson(erasureReceiptSchema.parse(result.receipt))
+    }),
     create: (request: Request) => serviceHandle(async () => {
       const parsed = createAnalysisRequestSchema.parse(await readServiceJson(request))
       const body = { ...parsed, request: { ...parsed.request, repositoryUrl: makeRepositoryTarget(parsed.request.repositoryUrl, parsed.request.branch)!.repoUrl } }
@@ -18,6 +33,7 @@ export function createServiceApi(store: ServiceStore, readSession: ReadSession) 
       if (!idempotencyKey || !/^[A-Za-z0-9._~-]{1,128}$/.test(idempotencyKey)) throw new ServiceHttpError('idempotency_key_required', 400)
       if (principal.kind === 'key' && (principal.installationRef !== (body.clientBinding?.installationRef ?? null))) throw new ServiceHttpError('installation_binding_mismatch', 403)
       const result = await store.enqueueAnalysis({ workspaceId: principal.workspace.id, createdByKeyId: principal.kind === 'key' ? principal.keyId : null, idempotencyKey, request: body.request, requestFingerprint: digestJson(body), clientBinding: body.clientBinding ?? null })
+      if (result.kind === 'subject_erased') throw new ServiceHttpError('subject_erased', 410)
       if (result.kind === 'conflict') throw new ServiceHttpError('idempotency_conflict', 409)
       if (result.kind === 'unauthorized') throw new ServiceHttpError('unauthorized', 401)
       if (result.kind === 'limited') throw new ServiceHttpError(result.reason, 429)

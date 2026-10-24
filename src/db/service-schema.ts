@@ -21,7 +21,7 @@ export const serviceApiKeys = pgTable('rl_api_keys', {
   installationRef: text('installation_ref'), expiresAt: time('expires_at'), revokedAt: time('revoked_at'), createdAt: time('created_at').notNull().defaultNow(),
 }, table => [unique('rl_key_workspace_identity').on(table.workspaceId, table.id), index('rl_key_workspace').on(table.workspaceId),
   check('rl_key_hash', sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`), check('rl_key_label', sql`char_length(${table.label}) between 1 and 100`),
-  check('rl_key_scopes', sql`jsonb_typeof(${table.scopes}) = 'array' and jsonb_array_length(${table.scopes}) between 1 and 2 and ${table.scopes} <@ '["analyses:create","analyses:read"]'::jsonb`),
+  check('rl_key_scopes', sql`jsonb_typeof(${table.scopes}) = 'array' and jsonb_array_length(${table.scopes}) between 1 and 3 and ${table.scopes} <@ '["analyses:create","analyses:read","analyses:erase"]'::jsonb`),
   check('rl_key_installation', sql`${table.installationRef} is null or ${table.installationRef} ~ '^[A-Za-z0-9._~-]{1,128}$'`)]).enableRLS()
 
 export const serviceAnalysisJobs = pgTable('rl_analysis_jobs', {
@@ -58,4 +58,14 @@ export const serviceFeedbackEdits = pgTable('rl_feedback_edits', {
 }, table => [uniqueIndex('rl_edit_scope_unique').on(table.reportRef, table.scopeKey),
   foreignKey({ name: 'rl_edit_workspace_report', columns: [table.workspaceId, table.reportRef], foreignColumns: [serviceReports.workspaceId, serviceReports.id] }).onDelete('cascade'),
   check('rl_edit_revision', sql`${table.revision} > 0`), check('rl_edit_text', sql`${table.text} is null or char_length(${table.text}) <= 20000`), check('rl_edit_scope', sql`char_length(${table.scopeKey}) between 1 and 160`),
+]).enableRLS()
+
+/** Minimal permanent suppression record; no repository, report, identity or feedback payload. */
+export const serviceSubjectErasures = pgTable('rl_subject_erasures', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => serviceWorkspaces.id, { onDelete: 'cascade' }),
+  operationRef: uuid('operation_ref').notNull(), installationRef: text('installation_ref').notNull(), subjectRef: text('subject_ref').notNull(),
+  createdAt: time('created_at').notNull().defaultNow(),
+}, table => [uniqueIndex('rl_erasure_operation_unique').on(table.workspaceId, table.operationRef), uniqueIndex('rl_erasure_subject_unique').on(table.workspaceId, table.installationRef, table.subjectRef),
+  check('rl_erasure_installation', sql`${table.installationRef} ~ '^[A-Za-z0-9._~-]{1,128}$'`), check('rl_erasure_subject', sql`${table.subjectRef} ~ '^[A-Za-z0-9._~-]{1,128}$'`),
 ]).enableRLS()

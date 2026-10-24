@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { acquireServiceFixtureLock } from './postgres-fixture-lock'
 import { Pool } from 'pg'
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
@@ -33,8 +34,10 @@ const lease = (job: StoredJob): LeaseIdentity => ({ jobId: job.id, leaseToken: j
 describe.skipIf(!target)('durable service store against disposable PostgreSQL', () => {
   let pool: Pool, store: ServiceStore
   let owners: string[], a: WorkspaceRecord, b: WorkspaceRecord
+  let releaseFixtureLock: (() => Promise<void>) | undefined
   beforeAll(async () => {
     pool = new Pool({ connectionString: target!, max: 12 })
+    releaseFixtureLock = await acquireServiceFixtureLock(pool)
     const executor: SqlExecutor = { async query<Row extends Record<string, unknown>>(text: string, parameters: unknown[] = []) { return (await pool.query(text, parameters)).rows as Row[] } }
     store = createServiceStore(executor)
     // Fresh disposable target only. Never reset or fall back to DATABASE_URL.
@@ -48,14 +51,14 @@ describe.skipIf(!target)('durable service store against disposable PostgreSQL', 
         await connection.query(await readFile(new URL('../../drizzle/0003_service_reports.sql', import.meta.url), 'utf8'))
       }
     } finally { await connection.query('SELECT pg_advisory_unlock(7839014522::bigint)'); connection.release() }
-  })
+  }, 30_000)
   beforeEach(async () => {
     owners = [randomUUID(), randomUUID()]
     for (const id of owners) await pool.query('INSERT INTO public.users(id,email,password_hash) VALUES($1,$2,$3)', [id, `fixture-${id}@example.test`, 'synthetic-not-a-login'])
     ;[a,b] = await Promise.all(owners.map(owner => store.getOrCreateWorkspace(owner)))
   })
   afterEach(async () => { if (owners) await pool.query('DELETE FROM public.users WHERE id=ANY($1::uuid[])', [owners]) })
-  afterAll(async () => { await pool?.end() })
+  afterAll(async () => { try { await releaseFixtureLock?.() } finally { await pool?.end() } })
   const enqueue = async (workspace: WorkspaceRecord, idempotencyKey: string = randomUUID(), options: Partial<Parameters<ServiceStore['enqueueAnalysis']>[0]> = {}) => store.enqueueAnalysis({ workspaceId: workspace.id, idempotencyKey, request: settings(), requestFingerprint: digest(settings()), ...options })
   async function claimed(workspace: WorkspaceRecord = a) {
     const created = await enqueue(workspace)

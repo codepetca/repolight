@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { publicRepositoryBundleSchema, publicRepositoryRequestSchema } from '@/lib/report/bundle-contract'
-import { analysisErrorCodeSchema, analysisIdSchema, analysisResultSchema, clientBindingSchema, digestSchema, feedbackEditSchema, serviceRefSchema, type FeedbackEdit } from './contract'
+import { erasureRequestSchema, erasureReceiptSchema, analysisErrorCodeSchema, analysisIdSchema, analysisResultSchema, clientBindingSchema, digestSchema, feedbackEditSchema, serviceRefSchema, type FeedbackEdit } from './contract'
 import { createNeonSqlExecutor, type SqlExecutor } from './sql-executor'
 import { DEFAULT_SERVICE_LIMITS, type ApiKeyMetadata, type ApiKeyRecord, type EnqueueAnalysisResult, type PinnedSnapshot, type ServiceStore, type StoredJob, type WorkspaceRecord } from './store-types'
 
@@ -32,7 +32,7 @@ export const pinnedSnapshotSchema = z.object({
   capturedAt: z.iso.datetime({ offset: true }), kind: z.literal('analysis_time'),
 }).strict()
 const keyIssueSchema = z.object({ id: analysisIdSchema, label: z.string().trim().min(1).max(100), secretHash: digestSchema,
-  scopes: z.array(z.enum(['analyses:create', 'analyses:read'])).min(1).max(2),
+  scopes: z.array(z.enum(['analyses:create', 'analyses:read', 'analyses:erase'])).min(1).max(3),
   installationRef: z.string().regex(/^[A-Za-z0-9._~-]{1,128}$/).nullable().optional(), expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
 }).strict()
 
@@ -43,6 +43,11 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
   const scalar = async (sql: string, args: unknown[]): Promise<unknown> => (await db().query(sql, args))[0]?.value
   const leaseArgs = (lease: { jobId: string; leaseToken: string; leaseGeneration: number }) => [analysisIdSchema.parse(lease.jobId), analysisIdSchema.parse(lease.leaseToken), z.number().int().positive().parse(lease.leaseGeneration)]
   return {
+    async eraseSubject(input) {
+      const request = erasureRequestSchema.parse(input.request)
+      const value = await scalar('SELECT public.rl_erase_subject($1,$2,$3,$4,$5) AS value', [analysisIdSchema.parse(input.workspaceId), input.createdByKeyId ? analysisIdSchema.parse(input.createdByKeyId) : null, request.operationRef, request.installationRef, request.subjectRef]) as Row
+      return value.kind === 'erased' ? { kind: 'erased', receipt: erasureReceiptSchema.parse(value.receipt) } : value as { kind: 'conflict' | 'unauthorized' }
+    },
     async getOrCreateWorkspace(ownerUserId) {
       analysisIdSchema.parse(ownerUserId)
       const rows = await db().query(`INSERT INTO public.rl_workspaces(owner_user_id,customer_ref) VALUES($1,$2) ON CONFLICT(owner_user_id) DO UPDATE SET owner_user_id=excluded.owner_user_id RETURNING *`, [ownerUserId, `customer_${randomUUID()}`])

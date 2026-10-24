@@ -77,3 +77,11 @@ export function toAnalysisStatus(job: {
     error: job.errorCode ? { code: job.errorCode, retryable: job.errorRetryable } : null,
   })
 }
+
+export const erasureRequestSchema = z.object({ schemaVersion: z.literal(SERVICE_SCHEMA_VERSION), operationRef: analysisIdSchema, installationRef: serviceRefSchema, subjectRef: serviceRefSchema }).strict()
+export const erasureReceiptSchema = erasureRequestSchema.extend({ status: z.literal('erased'), absenceVerified: z.literal(true) }).strict()
+export type ErasureRequest = z.infer<typeof erasureRequestSchema>
+export type ErasureReceipt = z.infer<typeof erasureReceiptSchema>
+
+export const connectionMetadataSchema = z.object({ schemaVersion: z.literal(SERVICE_SCHEMA_VERSION), workspaceRef: serviceRefSchema, installationRef: serviceRefSchema.nullable(), scopes: z.array(z.enum(['analyses:create', 'analyses:read', 'analyses:erase'])).min(1).max(3) }).strict()
+export type ConnectionMetadata = z.infer<typeof connectionMetadataSchema>
