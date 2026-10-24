@@ -75,9 +75,14 @@ describe('workspace-scoped v2 API', () => {
     expect((await api.status(req({}, b.headers), jobId)).status).toBe(404)
     expect((await api.result(req({}, b.headers), jobId)).status).toBe(404)
     expect(await (await api.list(req({}, b.headers))).json()).toEqual({ analyses: [] })
+    expect(store.listJobs).toHaveBeenLastCalledWith(workspaceId, 50, 'installation-b')
     expect((await api.status(req(), jobId)).status).toBe(200)
     const unbound = bearer()
     expect((await api.status(req({}, unbound.headers), jobId)).status).toBe(200)
+    await api.list(req({}, unbound.headers))
+    expect(store.listJobs).toHaveBeenLastCalledWith(workspaceId, 50, undefined)
+    await api.list(req())
+    expect(store.listJobs).toHaveBeenLastCalledWith(workspaceId, 50, undefined)
     job.clientBinding = null
   })
   it('normalizes repository URL before storage so pinned snapshot metadata agrees', async () => {

@@ -25,7 +25,7 @@ export function createServiceApi(store: ServiceStore, readSession: ReadSession) 
     }),
     list: (request: Request) => serviceHandle(async () => {
       const principal = await authenticateService(request, store, readSession, { scope: 'analyses:read' })
-      return serviceJson({ analyses: (await store.listJobs(principal.workspace.id, 50)).filter(job => canReadJob(principal, job)).map(toAnalysisStatus) })
+      return serviceJson({ analyses: (await store.listJobs(principal.workspace.id, 50, principal.kind === 'key' ? principal.installationRef ?? undefined : undefined)).filter(job => canReadJob(principal, job)).map(toAnalysisStatus) })
     }),
     status: (request: Request, id: string) => serviceHandle(async () => {
       const principal = await authenticateService(request, store, readSession, { scope: 'analyses:read' })

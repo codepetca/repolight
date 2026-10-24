@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { publicRepositoryBundleSchema, publicRepositoryRequestSchema } from '@/lib/report/bundle-contract'
-import { analysisErrorCodeSchema, analysisIdSchema, analysisResultSchema, clientBindingSchema, digestSchema, feedbackEditSchema, type FeedbackEdit } from './contract'
+import { analysisErrorCodeSchema, analysisIdSchema, analysisResultSchema, clientBindingSchema, digestSchema, feedbackEditSchema, serviceRefSchema, type FeedbackEdit } from './contract'
 import { createNeonSqlExecutor, type SqlExecutor } from './sql-executor'
 import { DEFAULT_SERVICE_LIMITS, type ApiKeyMetadata, type ApiKeyRecord, type EnqueueAnalysisResult, type PinnedSnapshot, type ServiceStore, type StoredJob, type WorkspaceRecord } from './store-types'
 
 type Row = Record<string, unknown>
-const timestamp = (value: unknown): string => new Date(String(value)).toISOString()
+const timestamp = (value: unknown): string => new Date(value instanceof Date ? value.getTime() : String(value)).toISOString()
 const nullableTime = (value: unknown): string | null => value == null ? null : timestamp(value)
 function workspace(row: Row): WorkspaceRecord {
   return { id: String(row.id), ownerUserId: String(row.owner_user_id), customerRef: String(row.customer_ref), createdAt: timestamp(row.created_at) }
@@ -79,8 +79,8 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
       const rows = await db().query(`SELECT * FROM public.rl_analysis_jobs WHERE workspace_id=$1 AND id=$2`, [analysisIdSchema.parse(workspaceId), analysisIdSchema.parse(jobId)])
       return rows[0] ? job(rows[0]) : null
     },
-    async listJobs(workspaceId, limit = 20) {
-      return (await db().query(`SELECT * FROM public.rl_analysis_jobs WHERE workspace_id=$1 ORDER BY created_at DESC,id DESC LIMIT $2`, [analysisIdSchema.parse(workspaceId), Math.max(1, Math.min(100, Math.floor(limit)))])).map(job)
+    async listJobs(workspaceId, limit = 20, installationRef) {
+      return (await db().query(`SELECT * FROM public.rl_analysis_jobs WHERE workspace_id=$1 AND ($3::text IS NULL OR client_binding->>'installationRef'=$3) ORDER BY created_at DESC,id DESC LIMIT $2`, [analysisIdSchema.parse(workspaceId), Math.max(1, Math.min(100, Math.floor(limit))), installationRef === undefined ? null : serviceRefSchema.parse(installationRef)])).map(job)
     },
     async getResult(workspaceId, jobId) {
       const rows = await db().query(`SELECT r.*,j.request_fingerprint,j.client_binding FROM public.rl_reports r JOIN public.rl_analysis_jobs j ON j.id=r.job_id AND j.workspace_id=r.workspace_id WHERE r.workspace_id=$1 AND r.job_id=$2 AND j.status='succeeded'`, [analysisIdSchema.parse(workspaceId), analysisIdSchema.parse(jobId)])

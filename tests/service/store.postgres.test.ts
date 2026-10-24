@@ -110,6 +110,19 @@ describe.skipIf(!target)('durable service store against disposable PostgreSQL', 
     expect((await enqueue(b, 'daily-one', { limits: { dailyAdmissions: 1 } })).kind).toBe('replayed')
     expect(await enqueue(b, 'daily-two', { limits: { dailyAdmissions: 1 } })).toEqual({ kind: 'limited', reason: 'daily_limit' })
   })
+  it('limits authorized installation jobs after filtering even behind 50 newer foreign jobs', async () => {
+    const binding = { installationRef: 'mine', subjectRef: 'submission', sourceRevisionRef: 'r1' }
+    const limits = { queuedPerWorkspace: 100, dailyAdmissions: 100 }
+    const first = await enqueue(a, randomUUID(), { clientBinding: binding, limits })
+    if (first.kind !== 'accepted') throw new Error('fixture admission')
+    for (let index = 0; index < 50; index++) expect((await enqueue(a, randomUUID(), { clientBinding: { ...binding, installationRef: 'other' }, limits })).kind).toBe('accepted')
+    expect(await store.listJobs(a.id, 50, 'mine')).toEqual([first.job])
+    expect(await store.listJobs(a.id, 50, 'other')).toHaveLength(50)
+    expect(await store.listJobs(b.id, 50, 'mine')).toEqual([])
+    const ownerList = await store.listJobs(a.id, 50)
+    expect(ownerList).toHaveLength(50)
+    expect(ownerList.some(job => job.id === first.job.id)).toBe(false)
+  })
   it('claims one job per workspace and respects the global ceiling across concurrent workers', async () => {
     await enqueue(a); await enqueue(a); await enqueue(b)
     const jobs = await Promise.all(Array.from({ length: 8 }, (_, index) => store.claimAnalysis({ workerId: `worker-${index}` })))

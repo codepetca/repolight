@@ -52,7 +52,7 @@ export interface ServiceStore {
   findApiKey(keyId: string): Promise<ApiKeyRecord | null>;
   enqueueAnalysis(input: EnqueueAnalysisInput): Promise<EnqueueAnalysisResult>;
   getJob(workspaceId: string, jobId: string): Promise<StoredJob | null>;
-  listJobs(workspaceId: string, limit?: number): Promise<StoredJob[]>;
+  listJobs(workspaceId: string, limit?: number, installationRef?: string): Promise<StoredJob[]>;
   getResult(workspaceId: string, jobId: string): Promise<AnalysisResult | null>;
   getEdits(workspaceId: string, reportRef: string): Promise<FeedbackEdit[] | null>;
   saveEdit(input: { workspaceId: string; reportRef: string; actorUserId: string; scopeKey: string; expectedRevision: number; text: string | null }): Promise<{ kind: 'saved'; edit: FeedbackEdit } | { kind: 'conflict' | 'not_found' | 'invalid_scope' }>;
