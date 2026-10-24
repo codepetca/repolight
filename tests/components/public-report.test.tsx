@@ -285,6 +285,11 @@ describe('PublicReportWorkspace', () => {
     expect((screen.getByRole('table',{name:'Commit evidence'}) as HTMLTableElement).tBodies[0].rows).toHaveLength(3)
     fireEvent.change(screen.getByLabelText('Report view'),{target:{value:'contributor:unknown'}})
     expect(screen.getByRole('heading',{name:'Unknown authors'})).toBeTruthy()
+    expect(screen.getByText(/Metrics, evidence and feedback below apply to an unknown-author bucket that may contain multiple people/)).toBeTruthy()
+    expect(screen.getByText('Report scope').parentElement?.querySelector('dd')?.textContent).toContain('unknown-author bucket; may contain multiple people, not one identified contributor')
+    fireEvent.click(screen.getByRole('button',{name:'Back to summary'}))
+    expect(screen.getByText('This unknown-author bucket may contain multiple people; its activity cannot be attributed to one identified contributor.')).toBeTruthy()
+    expect(screen.queryByText(/apply only to this contributor/)).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

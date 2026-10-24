@@ -19,7 +19,7 @@ The Next app builds without database credentials. Database-backed registration, 
 
 For an app smoke check, run `npm run dev -- --hostname 127.0.0.1 --port 3047` with a randomly generated `SESSION_SECRET` in the process environment. Keep local secrets outside Git. Login-page rendering does not establish that authentication/database workflows work.
 
-The standalone `/reports` page works without a database. Synthetic examples remain available through `npm run report:sample`, not a product demo button. Live public collection uses the development/loopback-only `POST /api/reports/analyze` route. Production builds display the report UI but reject live collection. See `PUBLIC-REPORTS.md`; do not relax this gate as a substitute for hosted authentication, usage controls and the existing deployment blockers.
+The standalone `/reports` page works without a database. Synthetic examples remain available through `npm run report:sample`, not a product demo button. The UI uses development/loopback-only `POST /api/reports/repository` for contributor bundles; legacy `POST /api/reports/analyze` remains compatible. Production builds display the report UI but reject live collection. See `PUBLIC-REPORTS.md`; do not relax this gate as a substitute for hosted authentication, usage controls and the existing deployment blockers.
 
 ## Branch ownership
 

@@ -10,7 +10,7 @@ const list = (value: string) => value.split(/[,\n]/).map(item => item.trim()).fi
 const readable = (value: string) => value.replaceAll('_', ' ')
 const dateLabel = (date: string) => date.slice(5).replace('-', '/')
 type ReportView = ReportContext & ScopeFacts
-type DisplayResult = { analysis: { report: ReportView; ruleFeedback: ScopeRuleFeedback }; label: string; isOverview: boolean }
+type DisplayResult = { analysis: { report: ReportView; ruleFeedback: ScopeRuleFeedback }; label: string; isOverview: boolean; isUnknownAuthor: boolean }
 
 export function PublicReportWorkspace() {
   const [bundle, setBundle] = useState<PublicRepositoryBundle | null>(null)
@@ -18,7 +18,7 @@ export function PublicReportWorkspace() {
   const [teacherEdits, setTeacherEdits] = useState<Record<string, string>>({})
   const selected = bundle?.contributors.find(entry => `contributor:${entry.contributor.id}` === scope)
   const activeAnalysis = selected?.analysis || bundle?.overview
-  const result: DisplayResult | null = bundle && activeAnalysis ? { analysis: { report: {...bundle.context, ...activeAnalysis.facts}, ruleFeedback: activeAnalysis.ruleFeedback }, label: selected?.contributor.label || 'Repository overview', isOverview: !selected } : null
+  const result: DisplayResult | null = bundle && activeAnalysis ? { analysis: { report: {...bundle.context, ...activeAnalysis.facts}, ruleFeedback: activeAnalysis.ruleFeedback }, label: selected?.contributor.label || 'Repository overview', isOverview: !selected, isUnknownAuthor: selected?.contributor.kind === 'unknown_author' } : null
   const feedback = teacherEdits[scope] ?? activeAnalysis?.ruleFeedback.feedbackDraft ?? ''
   const setFeedback = (value: string) => setTeacherEdits(edits => ({...edits, [scope]:value}))
   const [loading, setLoading] = useState(false)
@@ -157,7 +157,7 @@ export function PublicReportWorkspace() {
             {bundle.contributors.map(({contributor}) => <option key={contributor.id} value={`contributor:${contributor.id}`}>{contributor.label} · {contributorKind(contributor)}</option>)}
           </select>
         </div>
-        <p className={styles.muted}>{result.isOverview ? 'Repository totals include all eligible contributors, including bots and unlinked authors. They do not represent one student’s work.' : 'Metrics, evidence and feedback below apply only to this contributor. Repository context remains available in the overview.'}</p>
+        <p className={styles.muted}>{result.isOverview ? 'Repository totals include all eligible contributors, including bots and unlinked authors. They do not represent one student’s work.' : result.isUnknownAuthor ? 'Metrics, evidence and feedback below apply to an unknown-author bucket that may contain multiple people. This bucket does not identify one contributor.' : 'Metrics, evidence and feedback below apply only to this contributor. Repository context remains available in the overview.'}</p>
         {result.isOverview && <ContributorBreakdown bundle={bundle} onSelect={selectScope} />}
       </section>}
       {view === 'summary' ? <>
@@ -217,6 +217,7 @@ function WorkflowFindings({result}: {result: DisplayResult}) {
 function SummaryLimitations({result}: {result: DisplayResult}) {
   const {report, ruleFeedback} = result.analysis
   const limitations: string[] = []
+  if (result.isUnknownAuthor) limitations.push('This unknown-author bucket may contain multiple people; its activity cannot be attributed to one identified contributor.')
   if (report.coverage.history !== 'complete') limitations.push(`History collection is ${report.coverage.history}; observed activity may be incomplete.`)
   if (report.coverage.files !== 'complete') limitations.push(`File evidence is ${report.coverage.files}; change totals and missing heatmap cells are uncertain.`)
   if (report.baseline.status !== 'applied') limitations.push('Starter history has not been reviewed; inherited changes may remain in counts.')
@@ -241,7 +242,7 @@ function ReportMetadata({ result }: { result: DisplayResult }) {
     <div><dt>Source</dt><dd><a href={report.repository.url} target="_blank" rel="noreferrer">{report.repository.url.replace('https://github.com/', '')} ↗</a> · {report.repository.branch}</dd></div>
     <div><dt>Snapshot</dt><dd><a href={`${report.repository.url}/commit/${report.snapshot.sha}`} target="_blank" rel="noreferrer">{report.snapshot.sha.slice(0, 12)} ↗</a> · {readable(report.snapshot.kind)}<br />{report.snapshot.capturedAt}</dd></div>
     <div><dt>Period [start, end)</dt><dd>{report.period.startAt} → {report.period.endAt}<br />{report.period.timezone}</dd></div>
-    <div><dt>Report scope</dt><dd>{result.label} · {result.isOverview ? 'all eligible contributors' : 'one contributor'}</dd></div>
+    <div><dt>Report scope</dt><dd>{result.label} · {result.isOverview ? 'all eligible contributors' : result.isUnknownAuthor ? 'unknown-author bucket; may contain multiple people, not one identified contributor' : 'one contributor'}</dd></div>
     <div><dt>Baseline</dt><dd>{readable(report.baseline.status)}{report.baseline.reference && ` · ${report.baseline.reference}`}</dd></div>
     <div><dt>Collection coverage</dt><dd>History: {report.coverage.history} · Files: {report.coverage.files}<br />{report.scheduledProjectDates === null ? 'Project schedule unknown' : `${report.scheduledProjectDates.length} scheduled project dates`}</dd></div>
   </dl>
@@ -325,7 +326,7 @@ function contributorKind(contributor: PublicRepositoryBundle['contributors'][num
 }
 
 function ContributorBreakdown({bundle, onSelect}: {bundle: PublicRepositoryBundle; onSelect: (scope: string) => void}) {
-  return <><h3>Contributors</h3><p className={styles.muted}>Unlinked author groups are not verified GitHub identities. Unknown authors may represent more than one person. Explicit email matching remains available through the legacy report flow.</p>
+  return <><h3>Contributors</h3><p className={styles.muted}>Unlinked author groups are not verified GitHub identities. Unknown authors may represent more than one person.</p>
     {bundle.contributors.length ? <ul className={styles.contributors}>{bundle.contributors.map(({contributor, analysis}) => <li key={contributor.id}>
       <button className="button secondary" type="button" onClick={() => onSelect(`contributor:${contributor.id}`)}>View {contributor.label}</button>
       <span>{contributorKind(contributor)} · {analysis.facts.metrics.commits.value === null ? 'Commit count unavailable' : `${analysis.facts.metrics.commits.value} ${analysis.facts.metrics.commits.status === 'partial' ? 'observed commits (partial)' : 'included commits'}`}</span>

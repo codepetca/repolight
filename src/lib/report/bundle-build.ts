@@ -61,7 +61,7 @@ export function buildPublicRepositoryBundle(raw: PublicRepositoryBuildInput): Pu
     const id = login ? `github-${login}` : opaqueId(input.repositoryUrl, kind, kind === 'unknown_author' ? [] : allBuckets.get(key)!)
     const types = new Set((allBuckets.get(key) || []).map(sha => evidence.accountTypes?.[sha]).filter((type): type is 'user' | 'bot' => type === 'user' || type === 'bot'))
     const accountType: ContributorDescriptor['accountType'] = login && types.size === 1 ? [...types][0] : 'unknown'
-    return { contributor: { id, kind, githubLogin: login, label: login ? `@${login}` : kind === 'unknown_author' ? 'Unknown author' : '', accountType }, commits }
+    return { contributor: { id, kind, githubLogin: login, label: login ? `@${login}` : kind === 'unknown_author' ? 'Unknown authors' : '', accountType }, commits }
   }).sort((a, b) => a.contributor.id.localeCompare(b.contributor.id))
   let unlinked = 0
   const contributors = descriptors.map(({ contributor, commits }) => {
