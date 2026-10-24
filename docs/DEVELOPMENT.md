@@ -23,7 +23,7 @@ The standalone `/reports` page works without a database. Synthetic examples rema
 
 ## Branch ownership
 
-Keep the hub `/Users/stew/Repos/repocat` on main. New implementation branches use a worktree under `/Users/stew/.codex/worktrees/repocat/<branch-slug>`, based on the intended remote revision. Inspect existing worktrees and preserve active/uncommitted work before creating or retiring one. Do not switch another writer's checkout or share staging/commit operations concurrently.
+Keep the hub `/Users/stew/Repos/repolight` on main. New implementation branches use a worktree under `/Users/stew/.codex/worktrees/repolight/<branch-slug>`, based on the intended remote revision. Inspect existing worktrees and preserve active/uncommitted work before creating or retiring one. Do not switch another writer's checkout or share staging/commit operations concurrently.
 
 There is no canonical shared RepoLight environment file configured. Create a private worktree-local `.env.local` only when needed and with a known local/test target; never copy credentials from an unrelated project. Install dependencies in each worktree rather than symlinking node_modules.
 
