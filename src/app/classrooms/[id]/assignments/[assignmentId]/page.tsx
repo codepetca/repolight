@@ -8,10 +8,11 @@ import { getClassroomAssignmentDetail } from '@/lib/classroom/service'
 export default async function ClassroomAssignmentPage({
   params,
 }: {
-  params: { id: string; assignmentId: string }
+  params: Promise<{ id: string; assignmentId: string }>
 }) {
+  const routeParams = await params
   const user = await requireUser()
-  const assignment = await getClassroomAssignmentDetail(user.id, params.id, params.assignmentId)
+  const assignment = await getClassroomAssignmentDetail(user.id, routeParams.id, routeParams.assignmentId)
   const acceptedCount = assignment.repositories.filter((repository) => repository.invitationStatus === 'accepted').length
   const activeCount = assignment.repositories.filter((repository) => repository.activityStatus === 'active' || repository.successfulPushCount > 0).length
 

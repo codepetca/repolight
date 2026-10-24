@@ -3,11 +3,12 @@ import { RunWorkspace } from '@/components/RunWorkspace'
 import { requireUser } from '@/lib/auth/session'
 import { getRunDetail, getRunResults } from '@/lib/runs/service'
 
-export default async function RunPage({ params }: { params: { id: string } }) {
+export default async function RunPage({ params }: { params: Promise<{ id: string }> }) {
+  const routeParams = await params
   const user = await requireUser()
   const [run, results] = await Promise.all([
-    getRunDetail(user.id, params.id),
-    getRunResults(user.id, params.id),
+    getRunDetail(user.id, routeParams.id),
+    getRunResults(user.id, routeParams.id),
   ])
 
   return (

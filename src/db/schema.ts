@@ -198,3 +198,4 @@ export type Classroom = typeof classrooms.$inferSelect
 export type ClassroomStudent = typeof classroomStudents.$inferSelect
 export type ClassroomAssignment = typeof classroomAssignments.$inferSelect
 export type ClassroomRepository = typeof classroomRepositories.$inferSelect
+export * from './service-schema'

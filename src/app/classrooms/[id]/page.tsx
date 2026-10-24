@@ -5,9 +5,10 @@ import { CreateAssignmentForm } from '@/components/CreateAssignmentForm'
 import { requireUser } from '@/lib/auth/session'
 import { getClassroomDetail } from '@/lib/classroom/service'
 
-export default async function ClassroomDetailPage({ params }: { params: { id: string } }) {
+export default async function ClassroomDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const routeParams = await params
   const user = await requireUser()
-  const classroom = await getClassroomDetail(user.id, params.id)
+  const classroom = await getClassroomDetail(user.id, routeParams.id)
 
   return (
     <main className="app-shell">

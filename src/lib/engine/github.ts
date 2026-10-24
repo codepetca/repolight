@@ -14,6 +14,20 @@ export interface GitHubClientOptions {
   fetchImpl?: FetchLike
 }
 
+export type GitHubCollectionErrorCode = 'repository_unavailable' | 'private_repository' | 'upstream_rate_limited' | 'upstream_timeout' | 'upstream_unavailable' | 'collection_limit' | 'invalid_evidence'
+export class GitHubCollectionError extends Error {
+  constructor(public readonly code: GitHubCollectionErrorCode, public readonly retryable: boolean, message: string) { super(message); this.name = 'GitHubCollectionError' }
+}
+export interface PublicPinnedSnapshot { repositoryUrl: string; branch: string; sha: string; capturedAt: string; kind: 'analysis_time' }
+export interface PublicCollectionOptions {
+  signal?: AbortSignal;
+  pinnedSnapshot?: PublicPinnedSnapshot;
+  onSnapshot?: (snapshot: PublicPinnedSnapshot) => Promise<void>;
+  failOnTransientError?: boolean;
+  maxResponseBytes?: number;
+  maxTotalBytes?: number;
+}
+
 type GitHubRepoResponse = {
   private?: boolean
   default_branch?: string
@@ -90,7 +104,7 @@ export class GitHubClient {
   }
 
   /** Collect ancestry at one immutable head; reporting applies author-time windows later. */
-  async collectPublicReportEvidence(target: RepositoryTarget): Promise<{
+  async collectPublicReportEvidence(target: RepositoryTarget, options: PublicCollectionOptions = {}): Promise<{
     target: RepositoryTarget
     snapshot: { sha: string; capturedAt: string; kind: 'analysis_time' }
     events: AnalysisEvent[]
@@ -99,21 +113,26 @@ export class GitHubClient {
   }> {
     const deadline = Date.now() + 120_000
     let requestCount = 0
+    const bodyBudget = { bytes: 0, maxResponseBytes: Math.min(options.maxResponseBytes ?? 8 * 1024 * 1024, 8 * 1024 * 1024), maxTotalBytes: Math.min(options.maxTotalBytes ?? 32 * 1024 * 1024, 32 * 1024 * 1024) }
     const requestPage = <T>(path: string, opts: { allowNotFoundMessage?: boolean } = {}) => {
-      if (++requestCount > 600 || Date.now() >= deadline) throw new Error('Report collection request or two-minute time budget reached. Retry collection or narrow the repository history.')
-      return this.requestPage<T>(path, opts)
+      if (options.signal?.aborted) throw new GitHubCollectionError('upstream_timeout', true, 'Report collection was aborted.')
+      if (++requestCount > 600 || Date.now() >= deadline) throw new GitHubCollectionError('collection_limit', false, 'Report collection request or two-minute time budget reached. Retry collection or narrow the repository history.')
+      return this.requestPublicPage<T>(path, bodyBudget, options.signal, opts)
     }
     const base = `/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.name)}`
     const repo = (await requestPage<GitHubRepoResponse>(base, { allowNotFoundMessage: true })).data
     // Require an affirmative public response even when an optional token can see private repos.
-    if (repo.private !== false) throw new Error('Report collection requires a verified public GitHub repository.')
-    const branch = target.branch || repo.default_branch
-    if (!branch) throw new Error('GitHub did not return a default branch. Select a branch explicitly.')
+    if (repo.private !== false) throw new GitHubCollectionError(repo.private === true ? 'private_repository' : 'invalid_evidence', false, 'Report collection requires a verified public GitHub repository.')
+    const pinned = options.pinnedSnapshot
+    if (pinned && (pinned.repositoryUrl.toLowerCase() !== target.repoUrl.toLowerCase() || !isFullSha(pinned.sha) || !pinned.branch || !isValidDate(pinned.capturedAt) || pinned.kind !== 'analysis_time')) throw new GitHubCollectionError('invalid_evidence', false, 'Invalid pinned report snapshot.')
+    const branch = pinned?.branch || target.branch || repo.default_branch
+    if (!branch) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub did not return a default branch. Select a branch explicitly.')
     const resolvedTarget = { ...target, branch, key: makeRepositoryKey(target.owner, target.name, branch) }
-    const head = (await requestPage<{ commit?: { sha?: string } }>(`${base}/branches/${encodeURIComponent(branch)}`)).data
-    const sha = head.commit?.sha
-    if (!isFullSha(sha)) throw new Error('GitHub returned an invalid branch head SHA.')
-    const snapshot = { sha, capturedAt: new Date().toISOString(), kind: 'analysis_time' as const }
+    const sha = pinned?.sha ?? (await requestPage<{ commit?: { sha?: string } }>(`${base}/branches/${encodeURIComponent(branch)}`)).data.commit?.sha
+    if (!isFullSha(sha)) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub returned an invalid branch head SHA.')
+    const snapshot = { sha, capturedAt: pinned?.capturedAt ?? new Date().toISOString(), kind: 'analysis_time' as const }
+    await options.onSnapshot?.({ repositoryUrl: resolvedTarget.repoUrl, branch, ...snapshot })
+    if (options.signal?.aborted) throw new GitHubCollectionError('upstream_timeout', true, 'Report collection was aborted.')
     const notes = new Set<string>()
     let history: 'complete' | 'partial' = 'complete'
     let filesCoverage: 'complete' | 'partial' = 'complete'
@@ -123,13 +142,13 @@ export class GitHubClient {
     let omittedMerges = 0
     for (let page = 1; page <= 3; page += 1) {
       const result: { data: GitHubCommitSummary[]; headers: Headers } = await requestPage<GitHubCommitSummary[]>(`${base}/commits?sha=${sha}&per_page=100&page=${page}`)
-      if (!Array.isArray(result.data)) throw new Error('GitHub returned an invalid commit history response.')
-      if (page === 1 && result.data[0]?.sha !== sha) throw new Error('GitHub commit history does not match the pinned snapshot SHA.')
+      if (!Array.isArray(result.data)) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub returned an invalid commit history response.')
+      if (page === 1 && result.data[0]?.sha !== sha) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub commit history does not match the pinned snapshot SHA.')
       const remaining = MAX_COMMITS - scanned
       const selected = result.data.slice(0, remaining)
       for (const commit of selected) {
         scanned += 1
-        if (!isFullSha(commit.sha) || !commit.commit || !commit.commit.author) throw new Error('GitHub returned an invalid commit summary.')
+        if (!isFullSha(commit.sha) || !commit.commit || !commit.commit.author) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub returned an invalid commit summary.')
         if (seen.has(commit.sha)) {
           history = 'partial'
           notes.add('Repeated commits in history pagination; history may be incomplete.')
@@ -207,6 +226,7 @@ export class GitHubClient {
             }
           }
         } catch (error) {
+          if (options.signal?.aborted || (options.failOnTransientError && error instanceof GitHubCollectionError && (error.retryable || error.code === 'collection_limit'))) throw error
           usableFiles = false
           complete = false
           notes.add(`Commit ${summary.sha}: ${error instanceof Error ? error.message : 'Commit details unavailable.'}`)
@@ -354,6 +374,46 @@ export class GitHubClient {
       const relevantAt = pull.merged_at || pull.updated_at || pull.created_at
       return !!relevantAt && isWithinWindow(relevantAt, window)
     })
+  }
+
+  /** Public collection has independent streaming byte caps and typed, content-free failures. */
+  private async requestPublicPage<T>(path: string, budget: { bytes: number; maxResponseBytes: number; maxTotalBytes: number }, signal?: AbortSignal, opts: { allowNotFoundMessage?: boolean } = {}): Promise<{ data: T; headers: Headers }> {
+    if (!path.startsWith('/repos/') || path.startsWith('//') || path.includes('\\')) throw new GitHubCollectionError('invalid_evidence', false, 'Unsafe GitHub API path.')
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15_000)
+    const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    try {
+      const res = await this.fetchImpl(`${GITHUB_API_BASE}${path}`, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) }, cache: 'no-store', redirect: 'error', signal: combined })
+      if (!res.ok) {
+        await res.body?.cancel()
+        if (res.status === 429 || (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')) throw new GitHubCollectionError('upstream_rate_limited', true, 'GitHub rate limit reached. Retry after the limit resets or configure a public-read GITHUB_TOKEN.')
+        if (opts.allowNotFoundMessage && [403, 404].includes(res.status)) throw new GitHubCollectionError('repository_unavailable', false, 'Repo could not be accessed. Check that it exists and is public.')
+        throw new GitHubCollectionError(res.status >= 500 ? 'upstream_unavailable' : 'repository_unavailable', res.status >= 500, `GitHub request failed (HTTP ${res.status}). Check repository access and retry.`)
+      }
+      const declared = Number(res.headers.get('content-length') || 0)
+      if (declared > budget.maxResponseBytes || declared + budget.bytes > budget.maxTotalBytes) { await res.body?.cancel(); throw new GitHubCollectionError('collection_limit', false, 'GitHub collection response byte limit reached.') }
+      const reader = res.body?.getReader()
+      if (!reader) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub returned an empty response.')
+      const chunks: Uint8Array[] = []
+      let bytes = 0
+      try {
+        while (true) {
+          if (combined.aborted) throw new GitHubCollectionError('upstream_timeout', true, 'GitHub collection request was aborted.')
+          const next = await reader.read()
+          if (next.done) break
+          bytes += next.value.byteLength
+          budget.bytes += next.value.byteLength
+          if (bytes > budget.maxResponseBytes || budget.bytes > budget.maxTotalBytes) { await reader.cancel(); throw new GitHubCollectionError('collection_limit', false, 'GitHub collection response byte limit reached.') }
+          chunks.push(next.value)
+        }
+      } finally { reader.releaseLock() }
+      try { return { data: JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))) as T, headers: res.headers } }
+      catch { throw new GitHubCollectionError('invalid_evidence', false, 'GitHub returned invalid JSON evidence.') }
+    } catch (error) {
+      if (combined.aborted) throw new GitHubCollectionError('upstream_timeout', true, 'GitHub request timed out after 15 seconds or collection was aborted. Retry collection.')
+      if (error instanceof GitHubCollectionError) throw error
+      throw new GitHubCollectionError('upstream_unavailable', true, 'GitHub request could not be completed. Check the connection; redirects are not followed.')
+    } finally { clearTimeout(timer) }
   }
 
   private async request<T>(path: string, opts: { allowNotFoundMessage?: boolean } = {}): Promise<T> {

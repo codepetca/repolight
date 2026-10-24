@@ -15,10 +15,11 @@ const createAssignmentSchema = z.object({
   rubric: z.any().optional(),
 })
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const routeParams = await params
   return handleApi(async () => {
     const user = await requireUser()
     const body = createAssignmentSchema.parse(await request.json())
-    return { assignment: await createClassroomAssignment(user.id, params.id, body) }
+    return { assignment: await createClassroomAssignment(user.id, routeParams.id, body) }
   })
 }

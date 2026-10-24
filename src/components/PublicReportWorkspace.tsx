@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEventHandler, type FormEvent } from 'react'
-import { publicRepositoryBundleSchema, publicRepositoryRequestSchema, type PublicRepositoryBundle, type ReportContext, type ScopeFacts, type ScopeRuleFeedback } from '@/lib/report/bundle-contract'
+import { publicRepositoryBundleSchema, publicRepositoryRequestSchema, type PublicRepositoryBundle, type ReportContext, type ScopeFacts, type ScopeRuleFeedback, type PublicRepositoryRequest } from '@/lib/report/bundle-contract'
 import { periodFromDates } from '@/lib/report/public'
 import { formatDayInZone } from '@/lib/engine/time'
 import styles from './PublicReportWorkspace.module.css'
@@ -12,20 +12,29 @@ const dateLabel = (date: string) => date.slice(5).replace('-', '/')
 type ReportView = ReportContext & ScopeFacts
 type DisplayResult = { analysis: { report: ReportView; ruleFeedback: ScopeRuleFeedback }; label: string; isOverview: boolean; isUnknownAuthor: boolean }
 
-export function PublicReportWorkspace() {
-  const [bundle, setBundle] = useState<PublicRepositoryBundle | null>(null)
-  const [scope, setScope] = useState('repository')
-  const [teacherEdits, setTeacherEdits] = useState<Record<string, string>>({})
+export interface PublicReportWorkspaceProps {
+  initialBundle?: PublicRepositoryBundle
+  initialTeacherEdits?: Record<string, string>
+  analyzeRepository?: (request: PublicRepositoryRequest) => Promise<PublicRepositoryBundle | null>
+  saveFeedback?: (scopeKey: string, text: string) => Promise<void>
+}
+
+export function PublicReportWorkspace({initialBundle, initialTeacherEdits = {}, analyzeRepository, saveFeedback}: PublicReportWorkspaceProps = {}) {
+  const [bundle, setBundle] = useState<PublicRepositoryBundle | null>(initialBundle || null)
+  const [scope, setScope] = useState(initialBundle?.selection.status === 'matched' && initialBundle.selection.contributorId ? `contributor:${initialBundle.selection.contributorId}` : 'repository')
+  const [teacherEdits, setTeacherEdits] = useState<Record<string, string>>(initialTeacherEdits)
+  const [savingScope, setSavingScope] = useState<string | null>(null)
+  const [saveStatuses, setSaveStatuses] = useState<Record<string, {message: string; savedText?: string}>>({})
   const selected = bundle?.contributors.find(entry => `contributor:${entry.contributor.id}` === scope)
   const activeAnalysis = selected?.analysis || bundle?.overview
   const result: DisplayResult | null = bundle && activeAnalysis ? { analysis: { report: {...bundle.context, ...activeAnalysis.facts}, ruleFeedback: activeAnalysis.ruleFeedback }, label: selected?.contributor.label || 'Repository overview', isOverview: !selected, isUnknownAuthor: selected?.contributor.kind === 'unknown_author' } : null
   const feedback = teacherEdits[scope] ?? activeAnalysis?.ruleFeedback.feedbackDraft ?? ''
-  const setFeedback = (value: string) => setTeacherEdits(edits => ({...edits, [scope]:value}))
+  const setFeedback = (value: string) => {setTeacherEdits(edits => ({...edits, [scope]:value})); setSaveStatuses(statuses => ({...statuses,[scope]:{message:''}}))}
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
   const [view, setView] = useState<'summary' | 'evidence'>('summary')
-  const [configurationOpen, setConfigurationOpen] = useState(true)
+  const [configurationOpen, setConfigurationOpen] = useState(!initialBundle)
   const [dates, setDates] = useState({startDate:'',endDate:'',timezone:'America/Toronto'})
   useEffect(() => {
     let timezone = 'America/Toronto'
@@ -47,6 +56,7 @@ export function PublicReportWorkspace() {
     setBundle(analysis)
     setScope(analysis.selection.status === 'matched' && analysis.selection.contributorId ? `contributor:${analysis.selection.contributorId}` : 'repository')
     setTeacherEdits({})
+    setSaveStatuses({})
     setActionStatus('')
     setView('summary')
     setConfigurationOpen(false)
@@ -61,6 +71,7 @@ export function PublicReportWorkspace() {
     event.preventDefault()
     setBundle(null)
     setTeacherEdits({})
+    setSaveStatuses({})
     setError('')
     setActionStatus('')
     const form = new FormData(event.currentTarget)
@@ -75,10 +86,15 @@ export function PublicReportWorkspace() {
         baselineReviewed: form.get('baselineReviewed') === 'on',
       })
       setLoading(true)
-      const response = await fetch('/api/reports/repository', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'The repository could not be analyzed. Try again.')
-      show(publicRepositoryBundleSchema.parse(payload))
+      if (analyzeRepository) {
+        const analysis = await analyzeRepository(request)
+        if (analysis) show(publicRepositoryBundleSchema.parse(analysis))
+      } else {
+        const response = await fetch('/api/reports/repository', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error || 'The repository could not be analyzed. Try again.')
+        show(publicRepositoryBundleSchema.parse(payload))
+      }
     } catch (caught) {
       const issues = caught && typeof caught === 'object' && 'issues' in caught ? (caught as { issues: Array<{ message: string }> }).issues : null
       setError(issues ? issues.map(issue => issue.message).join(' ') : caught instanceof Error ? caught.message : 'Unable to analyze this repository.')
@@ -88,6 +104,18 @@ export function PublicReportWorkspace() {
   async function copy() {
     try { await navigator.clipboard.writeText(feedback); setActionStatus('Feedback copied.') }
     catch { setActionStatus('Copy is unavailable. Select the feedback text and copy it manually.') }
+  }
+
+  async function save() {
+    if (!saveFeedback) return
+    const savedScope = scope
+    setSavingScope(savedScope)
+    try {
+      await saveFeedback(savedScope, feedback)
+      setSaveStatuses(statuses => ({...statuses,[savedScope]:{message:'Feedback saved.',savedText:feedback}}))
+    } catch (caught) {
+      setSaveStatuses(statuses => ({...statuses,[savedScope]:{message:caught instanceof Error ? caught.message : 'Feedback could not be saved. Your local edits are retained.'}}))
+    } finally { setSavingScope(null) }
   }
 
   function download() {
@@ -133,7 +161,7 @@ export function PublicReportWorkspace() {
           <div className={styles.actions}><button className="button" type="submit">{loading ? 'Analyzing…' : 'Analyze public repository'}</button><span className={styles.muted}>Last 60 days by default</span></div>
         </fieldset>
       </form>
-      {loading && <p role="status">Pinning the branch snapshot and collecting evidence. This may take a moment.</p>}
+      {loading && <p role="status">{analyzeRepository ? 'Submitting the analysis job…' : 'Pinning the branch snapshot and collecting evidence. This may take a moment.'}</p>}
       {error && <p className="alert" role="alert">{error}</p>}
     </section>
     {result ? <div className={styles.results}>
@@ -168,8 +196,8 @@ export function PublicReportWorkspace() {
         <section className={styles.panel} aria-labelledby="feedback-heading"><div className={styles.sectionHead}><div><h2 id="feedback-heading">Feedback draft</h2><p>Edit this rule-based draft before sharing. Your edits remain separate from the original.</p></div></div>
           <label htmlFor="teacher-feedback" className={styles.feedbackLabel}>Teacher feedback</label>
           <textarea id="teacher-feedback" className={styles.feedback} value={feedback} onChange={event => { setFeedback(event.target.value); setActionStatus('') }} />
-          <div className={styles.actions}><button className="button" onClick={copy} type="button">Copy feedback</button><button className="button secondary" onClick={() => { setFeedback(result.analysis.ruleFeedback.feedbackDraft); setActionStatus('Rule draft restored.') }} type="button">Restore rule draft</button></div>
-          <p className={styles.muted} role="status">{actionStatus || 'Edits stay in this page until you copy or download them.'}</p>
+          <div className={styles.actions}>{saveFeedback && <button className="button" type="button" disabled={savingScope !== null} onClick={save}>{savingScope === scope ? 'Saving feedback…' : 'Save feedback'}</button>}<button className="button" onClick={copy} type="button">Copy feedback</button><button className="button secondary" onClick={() => { setFeedback(result.analysis.ruleFeedback.feedbackDraft); setActionStatus('Rule draft restored.') }} type="button">Restore rule draft</button></div>
+          <p className={styles.muted} role="status">{(saveStatuses[scope]?.savedText === undefined || saveStatuses[scope]?.savedText === feedback ? saveStatuses[scope]?.message : '') || actionStatus || (saveFeedback ? 'Changes stay local until you save this view. Each view has its own feedback revision.' : 'Edits stay in this page until you copy or download them.')}</p>
         </section>
       </div>
       </> : <>

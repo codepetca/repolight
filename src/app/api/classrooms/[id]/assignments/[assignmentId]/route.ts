@@ -4,12 +4,13 @@ import { getClassroomAssignmentDetail } from '@/lib/classroom/service'
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string; assignmentId: string } },
+  { params }: { params: Promise<{ id: string; assignmentId: string }> },
 ) {
+  const routeParams = await params
   return handleApi(async () => {
     const user = await requireUser()
     return {
-      assignment: await getClassroomAssignmentDetail(user.id, params.id, params.assignmentId),
+      assignment: await getClassroomAssignmentDetail(user.id, routeParams.id, routeParams.assignmentId),
     }
   })
 }
