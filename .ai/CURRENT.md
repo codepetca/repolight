@@ -1,4 +1,4 @@
-# RepoLight — 2026-10-22
+# RepoLight — 2026-10-24
 
 Recovered from main `626d7e9da7702bcd791ebb59f947937293907b0a`.
 
@@ -16,7 +16,7 @@ Read `docs/RECOVERY.md` for verified checks, existing deployment blockers and ru
 
 Important existing limits: Next 14 dependency advisories; fixed fallback session secret; shared API service user; no configured local database; collector caps and unpinned branch reads; webhook timestamps derived from head commit metadata. Do not deploy this recovered baseline as a multi-customer SaaS.
 
-Hub: `/Users/stew/Repos/repocat` on main. Active recovery worktree: `/Users/stew/.codex/worktrees/repocat/recover-report-contract`, branch `codex/recover-report-contract`. No push/publication authorized. Local receipts are ignored under `.verification/recovery`.
+Hub: `/Users/stew/Repos/repocat` on main. Active recovery worktree: `/Users/stew/.codex/worktrees/repocat/recover-report-contract`, branch `codex/recover-report-contract`. On 2026-10-24 the user authorized a PR and merge of this work into codepetca/repocat main. Repository/account rename and deployment remain outside that instruction. Local receipts are ignored under `.verification/`.
 
 Branding uses the shared Brand component across login, reports and authenticated headers, with the tagline “Code revealed.” The product demo button and client fixture imports are removed; synthetic fixtures remain in tests/CLI. Sign-in retains its accessible form name and action button without a large mode heading. Its brand centers a 36px logo/title group, with a centered medium-weight tagline on a separate row beneath both; other headers keep their compact layout.
 
