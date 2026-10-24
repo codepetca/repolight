@@ -29,6 +29,14 @@ function fixture(handle?: (url: URL, init?: RequestInit) => Response | Promise<R
 afterEach(() => vi.useRealTimers())
 
 describe('public report evidence collector', () => {
+  it('retains explicit account types separately without adding identity data to events', async () => {
+    const { client } = fixture(url => url.pathname.endsWith('/commits') ? json([commit(1, { author: { login: 'build-bot', type: 'Bot' } })]) : undefined)
+    const report = await client.collectPublicReportEvidence(target)
+    expect(report.accountTypes).toEqual({ [sha(1)]: 'bot' })
+    expect(report.events[0]).not.toHaveProperty('authorType')
+    expect(report.events[0]).not.toHaveProperty('authorName')
+  })
+
   it('pins the branch head once and paginates history without timestamp filters or early stops', async () => {
     const first = Array.from({ length: 100 }, (_, n) => commit(n + 1))
     first[0].commit.author.date = '2001-01-01T00:00:00Z'

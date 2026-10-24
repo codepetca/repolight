@@ -74,7 +74,7 @@ const observationSchema = z.object({
   evidence: z.array(z.object({ commitSha: sha, path: text.nullable() }).strict()),
 }).strict().refine(value => value.kind === 'limitation' || value.evidence.length > 0, 'Observations need supporting evidence.')
 
-export const repositoryReportSchema = z.object({
+const repositoryReportBaseSchema = z.object({
   schemaVersion: z.literal(REPORT_VERSION), metricsVersion: z.literal(METRICS_VERSION), reportRef: text, studentRef: text,
   repository: z.object({ url: repositoryUrl, branch: text, visibility: z.literal('public') }).strict(),
   snapshot: z.object({ sha, capturedAt: instant, kind: z.enum(['analysis_time', 'submission_time']) }).strict(),
@@ -98,7 +98,12 @@ export const repositoryReportSchema = z.object({
     observations: z.array(observationSchema),
     feedbackDraft: z.object({ text: text.max(10000), observationIds: z.array(text).min(1) }).strict().nullable(),
   }).strict(),
-}).strict().superRefine((report, ctx) => {
+}).strict()
+
+type EvidenceReport = Pick<z.infer<typeof repositoryReportBaseSchema>, 'repository' | 'commits' | 'interpretation' | 'timeline' | 'heatmap'>
+
+/** Shared reference validation has no student-identity or metric naming assumptions. */
+export function validateReportEvidence(report: EvidenceReport, ctx: z.RefinementCtx) {
   const commits = new Map(report.commits.map(commit => [commit.sha, commit]))
   if (commits.size !== report.commits.length) ctx.addIssue({ code: 'custom', message: 'Duplicate commit evidence.' })
   for (const commit of report.commits) {
@@ -124,6 +129,8 @@ export const repositoryReportSchema = z.object({
   for (const cell of report.heatmap.cells) {
     if (!commits.get(cell.commitSha)?.files.some(file => file.path === cell.path)) ctx.addIssue({ code: 'custom', message: 'Heatmap references an unknown commit/file.' })
   }
-})
+}
+
+export const repositoryReportSchema = repositoryReportBaseSchema.superRefine(validateReportEvidence)
 
 export type RepositoryReport = z.infer<typeof repositoryReportSchema>

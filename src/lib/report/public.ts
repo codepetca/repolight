@@ -7,7 +7,9 @@ export const publicReportRequestSchema = reportBuildInputSchema.pick({ repositor
   githubLogins: z.array(z.string().trim().min(1).max(100)).min(1).max(20),
   commitEmails: z.array(z.string().trim().email().max(254)).max(20).default([]),
   baselineReviewed: z.boolean().default(false),
-}).strict().superRefine((value, ctx) => {
+}).strict().superRefine(validatePublicSettings)
+
+export function validatePublicSettings(value: Pick<z.infer<typeof reportBuildInputSchema>, 'period' | 'scheduledProjectDates' | 'exclusions'>, ctx: z.RefinementCtx) {
   if (Date.parse(value.period.endAt) - Date.parse(value.period.startAt) > 366 * 86400000) ctx.addIssue({ code: 'custom', message: 'Choose a report period of at most 366 days.' })
   if ((value.scheduledProjectDates?.length || 0) > 366 || value.exclusions.commitShas.length > 250 || value.exclusions.pathPrefixes.length > 100 || value.exclusions.botLogins.length > 100) ctx.addIssue({ code: 'custom', message: 'Too many schedule dates or exclusions.' })
   try {
@@ -15,7 +17,7 @@ export const publicReportRequestSchema = reportBuildInputSchema.pick({ repositor
     const last = formatDayInZone(new Date(Date.parse(value.period.endAt) - 1).toISOString(), value.period.timezone)
     if (value.scheduledProjectDates?.some(date => date < first || date > last)) ctx.addIssue({ code: 'custom', message: 'Scheduled project dates must fall within the report period.' })
   } catch { /* The period schema reports invalid dates/timezones. */ }
-})
+}
 export type PublicReportRequest = z.infer<typeof publicReportRequestSchema>
 export type RuleObservation = { id: string; ruleId: string; kind: 'strength' | 'improvement' | 'review_question' | 'limitation'; text: string; evidence: Array<{ commitSha: string; path: string | null }> }
 export type RuleFeedback = {

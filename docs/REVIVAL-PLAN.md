@@ -23,7 +23,7 @@ Implementation and verification are authorized. Publication, merge, deployment, 
 
 | Milestone | State | Delivery and acceptance |
 | --- | --- | --- |
-| 1. Contributor-aware report | In progress | Optional username; scope-aware repo overview and per-contributor metrics/evidence/feedback from one collection; explicit unmatched fallback; unlinked authors/bots/aliases handled honestly; edits isolated per view; JSON includes the complete bundle; no regressions to v1/v2. Verify identity, schedule/date, exclusions, partial history/files and fallback with tests and browser checks. |
+| 1. Contributor-aware report | Implemented; verification in progress | Optional username; scope-aware repo overview and per-contributor metrics/evidence/feedback from one collection; explicit unmatched fallback; unlinked authors/bots/aliases handled honestly; edits isolated per view; JSON includes the complete bundle; no regressions to v1/v2. Verify identity, schedule/date, exclusions, partial history/files and fallback with tests and browser checks. |
 | 2. Secure persistent service | Planned after 1 | Reuse Next/Neon/Drizzle unless evidence requires a change. Customer-scoped authentication and report/job access, immutable stored facts and separate edits, durable atomic job claiming with leases/retries/idempotency, bounded concurrency and collection budgets. Resolve existing dependency/session/service-user hosting blockers. Demonstrate two-customer isolation, retry/restart recovery and duplicate-request safety using a disposable local database. Supply deployable configuration and operator documentation; distinguish this from actual hosted deployment. |
 | 3. Pika integration | Planned after 2 | Reuse Pika submission and external-service patterns. Send repo, optional username, assignment dates/schedule and opaque scoped references through one versioned create/status/result contract. Teacher Analyze/status/report and feedback import work end-to-end; reruns/late results never overwrite edited or returned feedback. Pika alone controls Return/student visibility. Verify teacher/student boundaries, failure/partial states, retries and duplicate/stale results. Follow Pika's startup, UI reference, migration and PR rules. |
 | 4. Optional AI interpretation | Planned after facts/service contract | AI is explicitly optional and separate from deterministic facts. Bounded evidence/context, no repository-code execution, untrusted repo text treated as data, structured cited observations, generator provenance and output validation. Failure leaves facts and original/edited rule feedback available. Test disabled/success/failure/invalid citation/prompt-injection cases without paid calls; verify a configured provider only with authorized access. |
@@ -46,6 +46,16 @@ RepoLight owns public repository collection, snapshot provenance, deterministic 
 
 Proposed service namespace remains create/status/result under `/api/v2/analyses`, with explicit schema versions. Use tenant-scoped idempotency keys, immutable snapshot/result revisions, authenticated polling/reconciliation, and signed notifications only if the existing integration pattern requires them. Arbitrary request-supplied callback fetch destinations are prohibited. Standalone and Pika use the same pipeline and metric semantics.
 
+## Accepted Pika integration findings
+
+Static discovery at Pika main `c7ff0f1f0a94e6e7600f22d0c2324abbf4e8412b` found structured `repo_link` submission artifacts and saved `user_github_identities`. `resolveAssignmentRepoTarget` currently assumes a username/owner fallback; the new integration must distinguish a supplied student login from inferred repository ownership. Existing GitHub account validation proves account existence, not ownership.
+
+The old `artifact-repo/run` route is synchronous and grading-shaped. Its completion path writes score suggestions even when `markGraded=false`; do not reuse that completion RPC for report-only jobs. Current teacher inspector has no Repo/Analyze action and explicitly tests that it is hidden. Add a deliberate report-only action using current approved Pika UI patterns rather than treating stale repo-inspector documentation as implementation evidence.
+
+Reuse server-only Gradex client validation/idempotency/poll binding, grading-run leases/retries, and Bara authenticated transport/replay protection where appropriate. Initial authenticated polling is simpler than introducing callbacks. Persist report lifecycle separately from grades/comments and protect teacher edits and Return. New storage must participate in archive/student-purge/remote-copy/decommission boundaries, not just generic RLS.
+
+Pika will require report-only lifecycle storage/RPC changes and generated database types. Applying a migration requires one-time approval naming the exact migration and target under Pika's schema-rollout rules; source and tests must be concrete before requesting that approval. No Pika database or credential was accessed during discovery.
+
 ## Explicitly deferred
 
 GitHub App setup, private repositories, historical push reconstruction, billing/payments, paid launch, recruiting external teachers, similarity checking, AI-authorship percentages, automatic misconduct verdicts, automatic grades, cohort ranking, repository code execution, other Git providers and LMS integrations beyond Pika. These are not necessary to complete the active goal. Existing legacy classroom/API behavior is preserved rather than expanded speculatively.
@@ -58,8 +68,11 @@ Current branch/worktree: `codex/contributor-reports` at `/Users/stew/.codex/work
 
 | Assignment | Model/effort | State | Ownership/evidence |
 | --- | --- | --- | --- |
-| Contributor bundle design | GPT-6.1 Sol/high | Running | Read-only report/collector/UI contract analysis; coordinator owns decision. |
-| Pika integration map | GPT-6.1 Sol/high | Running | Read-only Pika startup/source discovery; no data, credentials, migrations or edits. |
+| Contributor bundle backend | GPT-6.1 Sol/high | Delivered | Design accepted; owns scope-neutral calculations, versioned bundle contract/build/analyze, collector metadata and shared local route gate, backend tests. |
+| Pika integration map | GPT-6.1 Sol/high | Accepted | Read-only discovery at Pika main c7ff0f1f; existing submission/repo identity and Gradex/Bara patterns mapped. No edits/data/credentials/migrations. |
+| Contributor report UI | GPT-6.1 Sol/medium | Delivered | Owns existing report component/CSS/component tests against frozen bundle contract; no backend or shared-contract edits. |
 | Plan, shared decisions and setup | Coordinator | Running | This roadmap, CURRENT, scope decisions and clean worktree setup. |
 
 Initial resource receipt: Codex weekly allowance 47% used / 53% remaining (account-wide, not attributable task cost); storage healthy with approximately 258GB available. Automatic DeepSeek is explicitly paused through 2026-12-31. Effective worker model telemetry and per-turn token/time deltas are unknown unless subsequently exposed. Record deliveries, checks, rework and accepted revisions here as the work proceeds.
+
+Milestone1 integration receipt: 138 tests across21 files, typecheck, lint, diff check and production build passed. Backend/UI file ownership stayed separate; coordinator requested process-global route locking and scope-aware fallback notice behavior, both verified by regression tests. Browser/live checks and independent review are pending; code delivery is not hosted-service readiness.

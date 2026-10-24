@@ -33,6 +33,7 @@ type GitHubCommitSummary = {
   }
   author?: {
     login?: string | null
+    type?: string | null
   } | null
   parents?: Array<{ sha: string }>
 }
@@ -93,6 +94,7 @@ export class GitHubClient {
     target: RepositoryTarget
     snapshot: { sha: string; capturedAt: string; kind: 'analysis_time' }
     events: AnalysisEvent[]
+    accountTypes?: Record<string, 'user' | 'bot' | 'unknown'>
     coverage: { history: 'complete' | 'partial' | 'unavailable'; files: 'complete' | 'partial' | 'unavailable'; notes: string[] }
   }> {
     const deadline = Date.now() + 120_000
@@ -158,6 +160,7 @@ export class GitHubClient {
       if (!hasNext && result.data.length < 100) break
     }
     if (omittedMerges) notes.add(`${omittedMerges} merge commit(s) omitted from scanned history by collection policy; merge-resolution-only changes are not assessed; complete coverage refers to this non-merge scope.`)
+    const accountTypes: Record<string, 'user' | 'bot' | 'unknown'> = Object.fromEntries(summaries.map(summary => [summary.sha, summary.author?.type === 'Bot' ? 'bot' : summary.author?.type === 'User' ? 'user' : 'unknown']))
     const events = new Array<AnalysisEvent>(summaries.length)
     let cursor = 0
     const worker = async () => {
@@ -228,7 +231,7 @@ export class GitHubClient {
       }
     }
     await Promise.all(Array.from({ length: Math.min(6, summaries.length) }, worker))
-    return { target: resolvedTarget, snapshot, events, coverage: { history, files: filesCoverage, notes: [...notes].sort() } }
+    return { target: resolvedTarget, snapshot, events, accountTypes, coverage: { history, files: filesCoverage, notes: [...notes].sort() } }
   }
 
   async fetchRepositoryEvents(target: RepositoryTarget, window: AnalysisWindow, includeReviews = true): Promise<AnalysisEvent[]> {

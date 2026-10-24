@@ -1,26 +1,31 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEventHandler, type FormEvent } from 'react'
-import type { RepositoryReport } from '@/lib/report/contract'
-import { periodFromDates, publicReportRequestSchema, type PublicAnalysisResult } from '@/lib/report/public'
+import { publicRepositoryBundleSchema, publicRepositoryRequestSchema, type PublicRepositoryBundle, type ReportContext, type ScopeFacts, type ScopeRuleFeedback } from '@/lib/report/bundle-contract'
+import { periodFromDates } from '@/lib/report/public'
 import { formatDayInZone } from '@/lib/engine/time'
 import styles from './PublicReportWorkspace.module.css'
 
 const list = (value: string) => value.split(/[,\n]/).map(item => item.trim()).filter(Boolean)
 const readable = (value: string) => value.replaceAll('_', ' ')
 const dateLabel = (date: string) => date.slice(5).replace('-', '/')
-type DisplayResult = { analysis: PublicAnalysisResult; logins: string[] }
+type ReportView = ReportContext & ScopeFacts
+type DisplayResult = { analysis: { report: ReportView; ruleFeedback: ScopeRuleFeedback }; label: string; isOverview: boolean }
 
 export function PublicReportWorkspace() {
-  const [result, setResult] = useState<DisplayResult | null>(null)
-  const [feedback, setFeedback] = useState('')
+  const [bundle, setBundle] = useState<PublicRepositoryBundle | null>(null)
+  const [scope, setScope] = useState('repository')
+  const [teacherEdits, setTeacherEdits] = useState<Record<string, string>>({})
+  const selected = bundle?.contributors.find(entry => `contributor:${entry.contributor.id}` === scope)
+  const activeAnalysis = selected?.analysis || bundle?.overview
+  const result: DisplayResult | null = bundle && activeAnalysis ? { analysis: { report: {...bundle.context, ...activeAnalysis.facts}, ruleFeedback: activeAnalysis.ruleFeedback }, label: selected?.contributor.label || 'Repository overview', isOverview: !selected } : null
+  const feedback = teacherEdits[scope] ?? activeAnalysis?.ruleFeedback.feedbackDraft ?? ''
+  const setFeedback = (value: string) => setTeacherEdits(edits => ({...edits, [scope]:value}))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
   const [view, setView] = useState<'summary' | 'evidence'>('summary')
   const [configurationOpen, setConfigurationOpen] = useState(true)
-  const [studentLogin, setStudentLogin] = useState('')
-  const [loginEdited, setLoginEdited] = useState(false)
   const [dates, setDates] = useState({startDate:'',endDate:'',timezone:'America/Toronto'})
   useEffect(() => {
     let timezone = 'America/Toronto'
@@ -35,39 +40,45 @@ export function PublicReportWorkspace() {
   }, [])
   const resultHeading = useRef<HTMLHeadingElement>(null)
   const configurationHeading = useRef<HTMLHeadingElement>(null)
-  useEffect(() => { if (result) resultHeading.current?.focus() }, [result, view])
-  useEffect(() => { if (result && configurationOpen) configurationHeading.current?.focus() }, [configurationOpen, result])
+  useEffect(() => { if (bundle) resultHeading.current?.focus() }, [bundle, scope, view])
+  useEffect(() => { if (bundle && configurationOpen) configurationHeading.current?.focus() }, [configurationOpen, bundle])
 
-  function show(analysis: PublicAnalysisResult, logins: string[]) {
-    setResult({ analysis, logins })
-    setFeedback(analysis.ruleFeedback.feedbackDraft)
+  function show(analysis: PublicRepositoryBundle) {
+    setBundle(analysis)
+    setScope(analysis.selection.status === 'matched' && analysis.selection.contributorId ? `contributor:${analysis.selection.contributorId}` : 'repository')
+    setTeacherEdits({})
     setActionStatus('')
     setView('summary')
     setConfigurationOpen(false)
   }
 
+  function selectScope(value: string) {
+    setScope(value)
+    setActionStatus('')
+  }
+
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setResult(null)
-    setFeedback('')
+    setBundle(null)
+    setTeacherEdits({})
     setError('')
     setActionStatus('')
     const form = new FormData(event.currentTarget)
     const field = (name: string) => String(form.get(name) || '').trim()
     try {
-      const request = publicReportRequestSchema.parse({
+      const request = publicRepositoryRequestSchema.parse({
         repositoryUrl: field('repositoryUrl'), branch: field('branch') || 'main',
-        githubLogins: list(field('githubLogins')), commitEmails: list(field('commitEmails')),
+        ...(field('githubUsername') ? {githubUsername: field('githubUsername')} : {}),
         period: periodFromDates(field('startDate'), field('endDate'), field('timezone')),
         scheduledProjectDates: field('scheduledProjectDates') ? list(field('scheduledProjectDates')) : null,
         exclusions: { commitShas: list(field('commitShas')), pathPrefixes: list(field('pathPrefixes')), botLogins: list(field('botLogins')) },
         baselineReviewed: form.get('baselineReviewed') === 'on',
       })
       setLoading(true)
-      const response = await fetch('/api/reports/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
+      const response = await fetch('/api/reports/repository', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'The repository could not be analyzed. Try again.')
-      show(payload as PublicAnalysisResult, request.githubLogins)
+      show(publicRepositoryBundleSchema.parse(payload))
     } catch (caught) {
       const issues = caught && typeof caught === 'object' && 'issues' in caught ? (caught as { issues: Array<{ message: string }> }).issues : null
       setError(issues ? issues.map(issue => issue.message).join(' ') : caught instanceof Error ? caught.message : 'Unable to analyze this repository.')
@@ -81,7 +92,7 @@ export function PublicReportWorkspace() {
 
   function download() {
     if (!result) return
-    const content = { ...result.analysis, teacherFeedback: feedback }
+    const content = { ...bundle, teacherEdits }
     const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -96,10 +107,8 @@ export function PublicReportWorkspace() {
       <form onSubmit={analyze}>
         <fieldset disabled={loading} className={styles.fieldset}>
           <div className={styles.formGrid}>
-            <Field label="Public GitHub repository" name="repositoryUrl" required placeholder="https://github.com/student/project" type="url" onChange={event => {
-              if (!loginEdited) setStudentLogin(event.target.value.trim().match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/[A-Za-z0-9_.-]+\/?$/)?.[1] || '')
-            }} />
-            <Field label="Student GitHub username" name="githubLogins" required placeholder="student-login" value={studentLogin} onChange={event => {setStudentLogin(event.target.value);setLoginEdited(Boolean(event.target.value))}} hint="Suggested from the repo owner. Change it for shared or organization repos." />
+            <Field label="Public GitHub repository" name="repositoryUrl" required placeholder="https://github.com/student/project" type="url" />
+            <Field label="GitHub username (optional)" name="githubUsername" placeholder="student-login" hint="Leave blank for a repository overview. A matching username opens that contributor; ownership does not prove contribution." />
           </div>
           <details className={styles.advanced}><summary>Options</summary>
             <p className={styles.muted}>Last 60 days by default. Dates select commits to review; they do not schedule a task.</p>
@@ -115,7 +124,6 @@ export function PublicReportWorkspace() {
             <label className={styles.checkbox}><input type="checkbox" name="baselineReviewed" /> <span>I reviewed the starter history and supplied the necessary exclusions.</span></label>
             <p className={styles.muted}>This confirmation records your review; RepoLight does not compare a starter repository automatically. Without it, counts are marked partial.</p>
             <div className={styles.formGrid}>
-              <Field label="Commit email aliases (optional)" name="commitEmails" multiline hint="Use known student commit emails when GitHub cannot link their commits to a login. Emails are used for matching and omitted from downloaded reports." />
               <Field label="Excluded full commit SHAs" name="commitShas" multiline />
               <Field label="Excluded file or directory prefixes" name="pathPrefixes" multiline placeholder={'vendor/\ngenerated/'} />
               <Field label="Excluded bot logins" name="botLogins" multiline />
@@ -132,7 +140,7 @@ export function PublicReportWorkspace() {
       <section className={styles.panel} aria-labelledby="report-heading">
         <div className={styles.sectionHead}><div><p className={styles.eyebrow}>PUBLIC REPOSITORY SNAPSHOT</p>
           <h2 ref={resultHeading} tabIndex={-1} id="report-heading">{result.analysis.report.repository.url.replace('https://github.com/', '')}</h2>
-          <p>{view === 'summary' ? 'Report summary' : 'Report evidence'} · {result.analysis.report.repository.branch} · {result.logins.join(', ')}</p>
+          <p>{view === 'summary' ? 'Report summary' : 'Report evidence'} · {result.analysis.report.repository.branch} · {result.label}</p>
           <p>{localDate(result.analysis.report.period.startAt, result.analysis.report.period.timezone)} – {localDate(new Date(Date.parse(result.analysis.report.period.endAt) - 1).toISOString(), result.analysis.report.period.timezone)} · {result.analysis.report.period.timezone}</p></div>
           <div className={styles.actions}>
             <button type="button" className="button" onClick={() => setView(view === 'summary' ? 'evidence' : 'summary')}>{view === 'summary' ? 'View evidence' : 'Back to summary'}</button>
@@ -140,8 +148,20 @@ export function PublicReportWorkspace() {
             <button type="button" className="button secondary" onClick={download}>Download report JSON</button>
           </div></div>
       </section>
+      {bundle && <section className={styles.panel} aria-labelledby="scope-heading">
+        <h2 id="scope-heading" className={styles.summaryTitle}>{result.label}</h2>
+        {result.isOverview && bundle.selection.notice && <p className="notice">{bundle.selection.notice}</p>}
+        <div className={styles.field}><label htmlFor="report-scope">Report view</label>
+          <select id="report-scope" value={scope} onChange={event => selectScope(event.target.value)}>
+            <option value="repository">Repository overview</option>
+            {bundle.contributors.map(({contributor}) => <option key={contributor.id} value={`contributor:${contributor.id}`}>{contributor.label} · {contributorKind(contributor)}</option>)}
+          </select>
+        </div>
+        <p className={styles.muted}>{result.isOverview ? 'Repository totals include all eligible contributors, including bots and unlinked authors. They do not represent one student’s work.' : 'Metrics, evidence and feedback below apply only to this contributor. Repository context remains available in the overview.'}</p>
+        {result.isOverview && <ContributorBreakdown bundle={bundle} onSelect={selectScope} />}
+      </section>}
       {view === 'summary' ? <>
-      <Metrics report={result.analysis.report} />
+      <Metrics report={result.analysis.report} isOverview={result.isOverview} />
       <SummaryStats result={result} />
       <div className={styles.summaryGrid}>
         <div className={styles.summaryColumn}><WorkflowFindings result={result} /><SummaryLimitations result={result} /></div>
@@ -155,7 +175,7 @@ export function PublicReportWorkspace() {
       </> : <>
       <section className={styles.panel} aria-labelledby="collection-heading"><h2 id="collection-heading">Source & collection details</h2><ReportMetadata result={result} /></section>
       <Timeline report={result.analysis.report} />
-      <Heatmap report={result.analysis.report} />
+      <Heatmap key={scope} report={result.analysis.report} />
       <CommitEvidence result={result} />
       <section className={styles.panel} aria-labelledby="workflow-heading"><div className={styles.sectionHead}><div><h2 id="workflow-heading">Workflow observations</h2><p>Deterministic rules {result.analysis.ruleFeedback.rulesVersion}. These observations are prompts for teacher review.</p></div><span className="badge">Rule-based · no AI interpretation</span></div>
         <div className={styles.observations}>{result.analysis.ruleFeedback.observations.map(observation => <article key={observation.id} className={styles.observation}>
@@ -176,11 +196,11 @@ function localDate(instant: string, timezone: string) {
 
 function SummaryStats({result}: {result: DisplayResult}) {
   const {report, ruleFeedback: {summary}} = result.analysis
-  const available = report.metrics.studentCommits.status !== 'unavailable'
+  const available = report.metrics.commits.status !== 'unavailable'
   const dated = available && (report.commits.length === 0 || report.timeline.length > 0)
   return <dl className={styles.summaryStats}>
-    <div><dt>Observed active days</dt><dd>{dated ? summary.activeDays : 'Unavailable'}</dd><small>{report.metrics.studentCommits.status === 'partial' || report.activity.undatedCommitCount ? 'Partial evidence · dated commits only' : 'Local dates with included commits'}</small></div>
-    <div><dt>Generic-message share</dt><dd>{available && summary.messageCount ? `${Math.round(summary.genericMessageCount / summary.messageCount * 100)}% · ${summary.genericMessageCount} / ${summary.messageCount} messages` : 'Unavailable'}</dd><small>{report.metrics.studentCommits.status === 'partial' ? 'Partial evidence · exact generic-label rules' : 'Exact generic-label rules; not a grammar score'}</small></div>
+    <div><dt>Observed active days</dt><dd>{dated ? summary.activeDays : 'Unavailable'}</dd><small>{report.metrics.commits.status === 'partial' || report.activity.undatedCommitCount ? 'Partial evidence · dated commits only' : 'Local dates with included commits'}</small></div>
+    <div><dt>Generic-message share</dt><dd>{available && summary.messageCount ? `${Math.round(summary.genericMessageCount / summary.messageCount * 100)}% · ${summary.genericMessageCount} / ${summary.messageCount} messages` : 'Unavailable'}</dd><small>{report.metrics.commits.status === 'partial' ? 'Partial evidence · exact generic-label rules' : 'Exact generic-label rules; not a grammar score'}</small></div>
   </dl>
 }
 
@@ -201,7 +221,6 @@ function SummaryLimitations({result}: {result: DisplayResult}) {
   if (report.coverage.files !== 'complete') limitations.push(`File evidence is ${report.coverage.files}; change totals and missing heatmap cells are uncertain.`)
   if (report.baseline.status !== 'applied') limitations.push('Starter history has not been reviewed; inherited changes may remain in counts.')
   if (!report.scheduledProjectDates?.length) limitations.push('Project schedule is unavailable; density and scheduled-day coverage cannot be calculated.')
-  if (report.attribution.unmatchedCommitCount) limitations.push(`${report.attribution.unmatchedCommitCount} commit(s) did not match the configured student identity.`)
   if (report.activity.undatedCommitCount) limitations.push(`${report.activity.undatedCommitCount} included commit(s) have no author date; dates and period membership are uncertain.`)
   limitations.push(...report.coverage.notes.filter(note => note.includes('merge commit(s) omitted')))
   const noCommits = ruleFeedback.observations.find(item => item.ruleId === 'no-commits')
@@ -222,7 +241,7 @@ function ReportMetadata({ result }: { result: DisplayResult }) {
     <div><dt>Source</dt><dd><a href={report.repository.url} target="_blank" rel="noreferrer">{report.repository.url.replace('https://github.com/', '')} ↗</a> · {report.repository.branch}</dd></div>
     <div><dt>Snapshot</dt><dd><a href={`${report.repository.url}/commit/${report.snapshot.sha}`} target="_blank" rel="noreferrer">{report.snapshot.sha.slice(0, 12)} ↗</a> · {readable(report.snapshot.kind)}<br />{report.snapshot.capturedAt}</dd></div>
     <div><dt>Period [start, end)</dt><dd>{report.period.startAt} → {report.period.endAt}<br />{report.period.timezone}</dd></div>
-    <div><dt>Student identity</dt><dd>{result.logins.join(', ') || 'Not configured'} · {report.attribution.status === 'matched' ? 'identity configured' : 'not configured'}<br />{report.attribution.unmatchedCommitCount} unmatched commits</dd></div>
+    <div><dt>Report scope</dt><dd>{result.label} · {result.isOverview ? 'all eligible contributors' : 'one contributor'}</dd></div>
     <div><dt>Baseline</dt><dd>{readable(report.baseline.status)}{report.baseline.reference && ` · ${report.baseline.reference}`}</dd></div>
     <div><dt>Collection coverage</dt><dd>History: {report.coverage.history} · Files: {report.coverage.files}<br />{report.scheduledProjectDates === null ? 'Project schedule unknown' : `${report.scheduledProjectDates.length} scheduled project dates`}</dd></div>
   </dl>
@@ -232,9 +251,9 @@ function ReportMetadata({ result }: { result: DisplayResult }) {
   <details className={styles.advanced}><summary>Applied exclusions</summary><p>Commit SHAs: {report.exclusions.commitShas.join(', ') || 'None'}</p><p>Path prefixes: {report.exclusions.pathPrefixes.join(', ') || 'None'}</p><p>Bot logins: {report.exclusions.botLogins.join(', ') || 'None'}</p></details></>
 }
 
-function Metrics({ report }: { report: RepositoryReport }) {
+function Metrics({ report, isOverview }: { report: ReportView; isOverview: boolean }) {
   const items = [
-    { label: 'Student commits', metric: report.metrics.studentCommits, unit: 'included commits', percent: false },
+    { label: isOverview ? 'Repository commits' : 'Contributor commits', metric: report.metrics.commits, unit: 'included commits', percent: false },
     { label: 'Commit density', metric: report.metrics.commitDensity, unit: 'commits / scheduled project day', percent: false },
     { label: 'Scheduled day coverage', metric: report.metrics.scheduledDayCoverage, unit: 'scheduled dates with commits', percent: true },
     { label: 'Busiest day share', metric: report.metrics.busiestDayShare, unit: 'of included commits', percent: true },
@@ -246,7 +265,7 @@ function Metrics({ report }: { report: RepositoryReport }) {
   </article>)}</section>
 }
 
-function Timeline({ report }: { report: RepositoryReport }) {
+function Timeline({ report }: { report: ReportView }) {
   const localDate = (instant: number) => {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: report.period.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(instant))
     const fields = Object.fromEntries(parts.map(part => [part.type, part.value]))
@@ -257,7 +276,7 @@ function Timeline({ report }: { report: RepositoryReport }) {
   const dates: string[] = []
   for (let current = Date.parse(`${firstDate}T12:00:00Z`); current <= Date.parse(`${lastDate}T12:00:00Z`); current += 86400000) dates.push(new Date(current).toISOString().slice(0, 10))
   const observed = new Map(report.timeline.map(point => [point.date, point.commitCount]))
-  const complete = report.metrics.studentCommits.status === 'available' && report.activity.undatedCommitCount === 0
+  const complete = report.metrics.commits.status === 'available' && report.activity.undatedCommitCount === 0
   const max = Math.max(1, ...report.timeline.map(point => point.commitCount))
   const width = Math.max(500, dates.length * (dates.length > 20 ? 42 : 64))
   const slot = width / Math.max(1, dates.length)
@@ -272,7 +291,7 @@ function Timeline({ report }: { report: RepositoryReport }) {
   </section>
 }
 
-function Heatmap({ report }: { report: RepositoryReport }) {
+function Heatmap({ report }: { report: ReportView }) {
   const [filter, setFilter] = useState('')
   const matchedFiles = report.heatmap.files.filter(path => path.toLowerCase().includes(filter.toLowerCase()))
   const visibleFiles = matchedFiles.slice(0, 50)
@@ -297,4 +316,19 @@ function CommitEvidence({ result }: { result: DisplayResult }) {
     <div className={styles.tableScroll}><table className={styles.table}><caption>Commit evidence</caption><thead><tr><th scope="col">Commit / author date</th><th scope="col">Message</th><th scope="col">Observed files</th><th scope="col">Observed + / −</th></tr></thead><tbody>{report.commits.map(commit => <tr key={commit.sha}><td><a href={commit.url} target="_blank" rel="noreferrer">{commit.sha.slice(0, 7)} ↗</a><small className={styles.block}>{commit.authoredAt ? new Intl.DateTimeFormat('en-CA', { timeZone: report.period.timezone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(commit.authoredAt)) : 'Author date unknown'}</small></td><td className={styles.message}>{commit.message || '(empty message)'}</td><td>{commit.files.length}{report.coverage.files !== 'complete' ? ' observed' : ''}</td><td>{commit.additions ?? '?'} / {commit.deletions ?? '?'}</td></tr>)}</tbody></table></div>
     {!report.commits.length && <p>No included commits were observed.</p>}
   </section>
+}
+
+function contributorKind(contributor: PublicRepositoryBundle['contributors'][number]['contributor']) {
+  if (contributor.kind === 'unlinked_email') return 'Unlinked author'
+  if (contributor.kind === 'unknown_author') return 'Unknown author'
+  return contributor.accountType === 'bot' ? 'Bot account' : contributor.accountType === 'user' ? 'GitHub account' : 'GitHub account · type unknown'
+}
+
+function ContributorBreakdown({bundle, onSelect}: {bundle: PublicRepositoryBundle; onSelect: (scope: string) => void}) {
+  return <><h3>Contributors</h3><p className={styles.muted}>Unlinked author groups are not verified GitHub identities. Unknown authors may represent more than one person. Explicit email matching remains available through the legacy report flow.</p>
+    {bundle.contributors.length ? <ul className={styles.contributors}>{bundle.contributors.map(({contributor, analysis}) => <li key={contributor.id}>
+      <button className="button secondary" type="button" onClick={() => onSelect(`contributor:${contributor.id}`)}>View {contributor.label}</button>
+      <span>{contributorKind(contributor)} · {analysis.facts.metrics.commits.value === null ? 'Commit count unavailable' : `${analysis.facts.metrics.commits.value} ${analysis.facts.metrics.commits.status === 'partial' ? 'observed commits (partial)' : 'included commits'}`}</span>
+    </li>)}</ul> : <p>No eligible contributors were identified in the collected evidence. Check collection coverage before concluding there was no activity.</p>}
+  </>
 }
