@@ -16,6 +16,30 @@ async function submitSample() {
 }
 
 describe('PublicReportWorkspace', () => {
+  it('keeps dated heatmap gaps unknown when complete file evidence includes an undated commit', async () => {
+    const input = skyHopInput()
+    input.events[0].authoredAt = undefined
+    const report = buildRepositoryReport(input)
+    expect(report.heatmap.status).toBe('available')
+    expect(report.activity.undatedCommitCount).toBe(1)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok:true,json:async()=>({report,ruleFeedback:buildRuleFeedback(report)})}))
+    render(<PublicReportWorkspace />)
+    fireEvent.change(screen.getByLabelText('Public GitHub repository'),{target:{value:input.repositoryUrl}})
+    fireEvent.click(screen.getByRole('button',{name:'Analyze public repository'}))
+    await screen.findByRole('heading',{name:'Workflow findings'})
+    fireEvent.click(screen.getByRole('button',{name:'View evidence'}))
+    expect(screen.getByText(/Missing cells are unknown/)).toBeTruthy()
+    const table = screen.getByRole('table',{name:/Observed file changes/}) as HTMLTableElement
+    const row = Array.from(table.tBodies[0].rows).find(row => row.cells[0].textContent === 'Main.java')!
+    const column = Array.from(table.tHead!.rows[0].cells).findIndex(cell => cell.title === '2026-10-05')
+    expect(row.cells[column].textContent).toBe('?')
+    const observedColumn = Array.from(table.tHead!.rows[0].cells).findIndex(cell => cell.title === '2026-10-06')
+    expect(row.cells[observedColumn].textContent).toBe('14')
+    const gapColumn = Array.from(table.tHead!.rows[0].cells).findIndex(cell => cell.title === '2026-10-07')
+    expect(row.cells[gapColumn].textContent).toBe('?')
+    expect(row.cells[gapColumn].title).toContain('unknown')
+  })
+
   it('starts with a compact form, main branch and a browser-local 60-day period', async () => {
     vi.useFakeTimers({toFake:['Date']})
     vi.setSystemTime(new Date('2026-10-22T01:00:00Z'))

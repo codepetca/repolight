@@ -354,22 +354,36 @@ export class GitHubClient {
   }
 
   private async request<T>(path: string, opts: { allowNotFoundMessage?: boolean } = {}): Promise<T> {
-    return (await this.requestPage<T>(path, opts)).data
+    return (await this.requestPage<T>(path, { ...opts, followRedirects: true })).data
   }
 
-  private async requestPage<T>(path: string, opts: { allowNotFoundMessage?: boolean } = {}): Promise<{ data: T; headers: Headers }> {
+  private async requestPage<T>(path: string, opts: { allowNotFoundMessage?: boolean; followRedirects?: boolean } = {}): Promise<{ data: T; headers: Headers }> {
     if (!path.startsWith('/repos/') || path.startsWith('//') || path.includes('\\')) throw new Error('Unsafe GitHub API path.')
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15_000)
     try {
-      const res = await this.fetchImpl(`${GITHUB_API_BASE}${path}`, {
-        headers: {
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
-        },
-        cache: 'no-store', redirect: 'error', signal: controller.signal,
-      })
+      let url = `${GITHUB_API_BASE}${path}`
+      let res: Response
+      for (let redirects = 0; ; redirects++) {
+        res = await this.fetchImpl(url, {
+          headers: {
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+          },
+          cache: 'no-store', redirect: opts.followRedirects ? 'manual' : 'error', signal: controller.signal,
+        })
+        if (!opts.followRedirects || ![301, 302, 303, 307, 308].includes(res.status)) break
+        if (redirects >= 5) throw new SafeGitHubRequestError('GitHub redirect limit reached. Use the current repository URL.')
+        const location = res.headers.get('location')
+        if (!location) throw new SafeGitHubRequestError('GitHub redirect did not include a destination.')
+        const destination = new URL(location, url)
+        if (destination.origin !== GITHUB_API_BASE || destination.username || destination.password) {
+          throw new SafeGitHubRequestError('Unsafe GitHub redirect destination rejected.')
+        }
+        await res.body?.cancel()
+        url = destination.href
+      }
       if (!res.ok) {
         if (res.status === 429 || (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')) {
           throw new SafeGitHubRequestError('GitHub rate limit reached. Retry after the limit resets or configure a public-read GITHUB_TOKEN.')

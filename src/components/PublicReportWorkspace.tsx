@@ -280,7 +280,7 @@ function Heatmap({ report }: { report: RepositoryReport }) {
   const commitDates = new Map(report.timeline.flatMap(point => point.commitShas.map(sha => [sha, point.date] as const)))
   const cells = new Map<string, number>()
   for (const cell of report.heatmap.cells) { const date = commitDates.get(cell.commitSha); if (date) { const key = `${cell.path}\0${date}`; cells.set(key, (cells.get(key) || 0) + cell.additions + cell.deletions) } }
-  const complete = report.heatmap.status === 'available' && report.coverage.files === 'complete' && report.coverage.history === 'complete'
+  const complete = report.heatmap.status === 'available' && report.coverage.files === 'complete' && report.coverage.history === 'complete' && report.activity.undatedCommitCount === 0
   let maximum = 1
   for (const value of cells.values()) maximum = Math.max(maximum, value)
   return <section className={styles.panel} aria-labelledby="heatmap-heading"><div className={styles.sectionHead}><div><h2 id="heatmap-heading">File activity</h2><p>Observed additions + deletions by file and local date. Change volume describes the diff, not its value.</p></div><span className="badge">{report.heatmap.status} file evidence</span></div>
