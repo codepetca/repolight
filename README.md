@@ -1,8 +1,25 @@
-# Repocat
+# RepoLight
 
-Repocat is a small standalone Next.js app for classroom-shaped public GitHub repository contribution analysis. The deterministic analyzer lives in `src/lib/engine`, while Repocat Classroom adds classes, student repo mappings, assignment dashboards, and analysis handoff for tools such as Pika.
+Formerly Repocat. The app now uses RepoLight branding; existing `REPOCAT_*` configuration and v1 integration identifiers remain compatible.
 
-## Stack
+RepoLight is a small standalone Next.js app for classroom-shaped public GitHub repository contribution analysis. The deterministic analyzer lives in `src/lib/engine`, while RepoLight Classroom adds classes, student repo mappings, assignment dashboards, and analysis handoff for tools such as Pika.
+
+## Public-repository recovery and report contract
+
+The current revival phase uses public repositories and preserves the existing app and v1 API. GitHub App setup is deferred. See [recovery status](docs/RECOVERY.md), [development commands](docs/DEVELOPMENT.md), [report contract v2](docs/REPORT-CONTRACT.md) and [revival plan](docs/REVIVAL-PLAN.md).
+
+```sh
+npm ci
+npm test
+npm run typecheck
+npm run report:sample --silent
+```
+
+The sample emits a fictional report with deterministic commit count, density, scheduled-day coverage, busiest-day share, timeline and file heatmap evidence. No database, token, GitHub App or AI provider is required. The legacy grading scores described below remain v1 behavior and are not included in the new report contract. Existing deployment blockers are documented in the recovery status.
+
+For the interactive standalone report, run `npm run dev -- --hostname 127.0.0.1 --port 3047` and open `http://127.0.0.1:3047/reports`. Submit a public GitHub URL and student username; the review period and project schedule are under Options. The report includes graphs, commit evidence, transparent feedback rules, editable teacher feedback and JSON download. No sign-in or database is needed for this local preview. Live analysis is disabled in production; this is not an unauthenticated hosted SaaS endpoint. See [public reports](docs/PUBLIC-REPORTS.md) for collection limits, rule definitions and API input/output. AI remains optional future work.
+
+## Existing stack
 
 - Next.js App Router
 - Neon Postgres
@@ -47,14 +64,14 @@ Optional:
 
 `commit_emails` may contain comma- or semicolon-separated addresses.
 
-## Repocat Classroom MVP
+## RepoLight Classroom MVP
 
 The Classroom layer is intentionally small:
 
 - Create a class with an optional GitHub org and default repo prefix.
 - Create an assignment from a CSV of one repository per student.
 - Track per-student repository status fields such as invite state, activity state, successful pushes, and first/last push timestamps.
-- Create a normal Repocat analysis run from the classroom assignment mapping.
+- Create a normal RepoLight analysis run from the classroom assignment mapping.
 
 Classroom assignment CSV fields:
 
@@ -121,7 +138,7 @@ GET  /api/v1/runs/:id/charts
 GET  /api/v1/runs/:id/export.csv
 ```
 
-Results use Repocat's canonical normalized analysis shape. Component scores are decimals from `0` to `1`; consuming apps decide how to map them into their own grading scale.
+Results use RepoLight's canonical normalized analysis shape. Component scores are decimals from `0` to `1`; consuming apps decide how to map them into their own grading scale.
 
 ```json
 {
@@ -187,7 +204,7 @@ Results use Repocat's canonical normalized analysis shape. Component scores are 
       },
       "strengths": ["meaningful project impact", "visible iteration and refinement"],
       "next_step": "Add commits that clearly show debugging, testing, cleanup, or refinement.",
-      "feedback_comment": "Repocat found 7 matching commit(s) across 4 active day(s) and 4 work session(s). Strongest evidence: meaningful project impact, visible iteration and refinement. Achievement: Iteration Pro. Next step: Add commits that clearly show debugging, testing, cleanup, or refinement. Confidence: 80%."
+      "feedback_comment": "RepoLight found 7 matching commit(s) across 4 active day(s) and 4 work session(s). Strongest evidence: meaningful project impact, visible iteration and refinement. Achievement: Iteration Pro. Next step: Add commits that clearly show debugging, testing, cleanup, or refinement. Confidence: 80%."
     }
   ]
 }

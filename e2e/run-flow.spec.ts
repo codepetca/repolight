@@ -33,5 +33,5 @@ test('creates a run, processes fixture repo data, adjusts rubric, and exports CS
 
   const download = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Export' }).click()
-  expect((await download).suggestedFilename()).toMatch(/repocat-.*\.csv/)
+  expect((await download).suggestedFilename()).toMatch(/repolight-.*\.csv/)
 })

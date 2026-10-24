@@ -11,3 +11,6 @@ playwright-report
 test-results
 tsconfig.tsbuildinfo
 .vercel
+.verification
+.playwright-cli/
+output/playwright/

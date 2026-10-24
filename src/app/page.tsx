@@ -18,7 +18,7 @@ export default async function DashboardPage() {
       <div className="page">
         <div className="page-header">
           <div>
-            <h1 className="page-title">Repocat Workspace</h1>
+            <h1 className="page-title">RepoLight Workspace</h1>
             <p className="page-subtitle">Create classroom assignments or run standalone CSV analysis against public GitHub repos.</p>
           </div>
           <div className="toolbar">

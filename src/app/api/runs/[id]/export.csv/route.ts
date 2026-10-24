@@ -7,7 +7,7 @@ export async function GET(_: Request, context: { params: { id: string } }) {
   return new Response(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="repocat-${context.params.id}.csv"`,
+      'Content-Disposition': `attachment; filename="repolight-${context.params.id}.csv"`,
     },
   })
 }

@@ -385,7 +385,7 @@ function feedbackCommentFor(
 ): string {
   if (result.activity.commit_count === 0) {
     return [
-      'Repocat did not find matching commits for this contributor in the analysis window.',
+      'RepoLight did not find matching commits for this contributor in the analysis window.',
       nextStep,
       `Confidence: ${Math.round(result.confidence.value * 100)}%.`,
     ].join(' ')
@@ -396,7 +396,7 @@ function feedbackCommentFor(
     : 'Strongest evidence: visible committed progress.'
 
   return [
-    `Repocat found ${result.activity.commit_count} matching commit(s) across ${result.activity.active_days} active day(s) and ${result.activity.session_count} work session(s).`,
+    `RepoLight found ${result.activity.commit_count} matching commit(s) across ${result.activity.active_days} active day(s) and ${result.activity.session_count} work session(s).`,
     strengthText,
     `Achievement: ${result.achievement}.`,
     `Next step: ${nextStep}`,

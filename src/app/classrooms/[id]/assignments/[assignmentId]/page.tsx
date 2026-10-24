@@ -66,7 +66,7 @@ export default async function ClassroomAssignmentPage({
             )}
           </div>
           <div className="panel-body stack">
-            <div className="notice">This creates an ordinary Repocat analysis run from the assignment repository mapping. Processing still happens in the run workspace.</div>
+            <div className="notice">This creates an ordinary RepoLight analysis run from the assignment repository mapping. Processing still happens in the run workspace.</div>
             <AssignmentActions classroomId={assignment.classroom.id} assignmentId={assignment.id} analysisRunId={assignment.analysisRunId} />
           </div>
         </section>

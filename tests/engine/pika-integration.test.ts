@@ -267,7 +267,7 @@ describe('pika integration mapping', () => {
       component_scores: { impact: 0.9, workflow: 0.72, quality: 0.82 },
       activity_summary: { commit_count: 7, active_days: 4, session_count: 5 },
     })
-    expect(summary.contributors[0]?.feedback_comment).toContain('Repocat found 7 matching commit')
+    expect(summary.contributors[0]?.feedback_comment).toContain('RepoLight found 7 matching commit')
     expect(summary.contributors[0]?.feedback_comment).toContain('Achievement: Iteration Pro')
     expect(summary.contributors[0]?.next_step).toContain('Spread progress')
 
