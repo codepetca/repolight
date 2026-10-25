@@ -317,3 +317,27 @@ receipt; preserve existing cohort/routing/provider holds. Source inventory has
 history. Exact-target preview, named migration approval and separate runtime
 promotion remain required. No competing live client, schema or production change
 was started. Private publication/rollout receipts retain the prepared next steps.
+
+
+### Pika production foundation released — 2026-10-25
+
+The human approved production293 once and reviewed release1687 during a coordinated
+archive/deletion/cleanup window. Canonical run40226843818 applied-verified only293,
+history001–293 and the frozen source/digest. SELECT-only checks passed for ten
+tables/RLS/ACLs,53final routine bodies,13preserved renamed bodies,31triggers,
+constraints/indexes and exact current/V2 archive registrations. No shared local
+migration or fixture changes occurred.
+
+PR#1687 merged `dbd1f62c12b3be8f359d6c35fde77a27d7f77987`, tree-identical to reviewed
+`d48d293`; CI40222687057 passed all ten jobs. Vercel
+`dpl_tCawB6aLRNnQN6FBxw35QinNZtx8` reported READY on the exact production SHA.
+The public sign-in page200, anonymous session/report APIs401 and Pattern Lab404
+checks passed. Provider/control metadata was unchanged; the window was released
+to both coordinated Pika tasks. Receipt#1689 merged to main only.
+
+Pika Analyze and optional RepoLight AI remain OFF; the integration epic remains
+incomplete. Configure the selected teacher/workspace/installation connection and
+perform authenticated hosted report/feedback acceptance next. The known standalone
+Pika archive-inventory diagnostic rejects the new family and remains a tracked
+operator-tool follow-up, not a passing acceptance claim. Versioned private receipts
+and checksums are retained in the hosted-pilot evidence archive.

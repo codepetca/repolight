@@ -13,16 +13,23 @@ key restrictions, stop/start queue recovery, erasure and revocation passed.
 Synthetic reports were erased and temporary keys revoked. [VERCEL.md](../docs/VERCEL.md)
 records target, deployment and remaining rollout boundaries. No paid AI calls.
 
-Pika production integration remains OFF; shared/prod293 was not applied or promoted.
-The reviewed repeat-import fix is [Pika PR#1686](https://github.com/codepetca/pika/pull/1686)
-at reviewed `d0970d700`, merged as `2dbc88756782109e67d2122eb5b3fe8dfb458799`.
-[CI40210526971](https://github.com/codepetca/pika/actions/runs/40210526971) passed
-all six selected jobs, with four planned database/SDK skips; the hub is synchronized. Coordination with “Teacher vs student login”
-and “Audit Pika security and privacy” permits main-only CI/merge. Production source
-`9a845b2688060b78908e2c4103e5674bf0255324` and configuration are held through that
-owner’s actual permission-attempt3 completion/failure receipt. This is no migration
-or production-promotion approval. Local pilot
-proof is archived at `~/.codex/verification-archives/repolight-local-pilot-2026-10-25/`.
+Pika [PR#1687](https://github.com/codepetca/pika/pull/1687) is live at reviewed production
+`dbd1f62c12b3be8f359d6c35fde77a27d7f77987`; Vercel reported READY on that exact SHA.
+Separate human approval covered one production293 application and the coordinated
+release. [Run40226843818](https://github.com/codepetca/pika/actions/runs/40226843818)
+verified only293/history001–293 and the approved source/digest. Catalog/RLS/ACL,
+routine preservation, trigger and archive checks passed; CI40222687057 passed all
+ten jobs. Existing cohort/provider controls were preserved and the maintenance
+window is closed. Shared local was untouched. Pika [receipt#1689](https://github.com/codepetca/pika/pull/1689)
+records the verified state; its main-only documentation merge does not deploy.
+
+Analyze and optional RepoLight AI remain OFF. Teacher/workspace/installation key
+binding and an authenticated hosted Pika → RepoLight pilot are next. Earlier local
+and standalone hosted evidence do not establish that integration acceptance.
+The standalone Pika archive-inventory diagnostic has a tracked post293 resource
+family limitation; runtime V2 graphs are additive-aware. Local pilot proof remains
+at `~/.codex/verification-archives/repolight-local-pilot-2026-10-25/` and versioned
+production receipts at `~/.codex/verification-archives/repolight-hosted-pilot-2026-10-25/`.
 Earlier checkpoints below are history, not current hosted-readiness claims.
 
 ## Historical pre-activation checkpoint
