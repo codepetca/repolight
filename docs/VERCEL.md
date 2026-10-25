@@ -22,7 +22,7 @@ CLI 54.17.2 omitted daemon output; 65.2.0 successfully builds the Next.js app an
 emits `daemons.analysis-worker` plus its `.vc-config.json` in the Build Output API
 artifact. The daemon image was built for Linux amd64 and uploaded to this Vercel
 team's container registry during build. Building does not start worker instances.
-Actual hosted daemon startup remains a required production smoke check. The
+Hosted startup and smoke checks below verify the runtime. The
 explicit `npm ci` install preserves the pinned lockfile.
 
 ## Prepared resources — 2026-10-25
@@ -38,25 +38,45 @@ explicit `npm ci` install preserves the pinned lockfile.
   names the exact origin, and `REPOLIGHT_AI_ENABLED=false`. No provider key or
   GitHub App was configured. Do not copy these credentials into Git or previews.
 
-Read-only inspection verified no application tables or migration ledger exist in
-the new target. No hosted migration or deployment has occurred at this checkpoint.
+## Activation verified — 2026-10-25
 
-## Activation sequence
+The human approved applying the six existing migrations to this exact dedicated
+Neon target. Migrations `0000`–`0005` applied through the existing Drizzle journal;
+all six ledger hashes match the frozen manifest. There are 19 application tables.
+Service tables have RLS enabled, no public policies, and service functions expose
+no PUBLIC execution grants. No Pika schema was changed.
 
-1. Obtain exact-target approval for the unchanged committed Drizzle migrations
-   `0000_curly_hellion.sql`, `0001_external-run-identifiers.sql`,
-   `0002_living_forge.sql`, `0003_service_reports.sql`,
-   `0004_subject_erasures.sql` and `0005_optional_interpretation.sql` on the
-   dedicated database above. Verify the frozen SHA-256 manifest before execution.
-   Never migrate during application/container builds or point this run at Pika.
-2. Apply through the existing Drizzle journal; verify all six entries and the
-   resulting table/function/permission contracts. Optional AI remains disabled.
-3. Deploy the reviewed web application and daemon to the prepared Vercel project.
-   Verify sign-in, public-repository analysis, saved reports across worker restart,
-   installation-scoped authentication and erasure using synthetic pilot records.
-4. Keep Pika's production gate off until its separate exact-target migration 293,
-   reviewed feedback-import fix, scoped credential binding and authenticated
-   hosted integration checks are complete.
+Vercel production deployment `dpl_FaaepPvXtb9sSguYiCDzoAQdH6ys` is READY and aliased
+to `https://repolight.vercel.app`. Its recorded Git SHA is reviewed
+`a08cce3581c22a4aff68899add3bfecd2459abdf` on local branch `codex/vercel-pilot`.
+This hosting branch is not yet published to GitHub and the project is not
+Git-connected; subsequent main pushes do not automatically update this deployment.
+
+Actual hosted synthetic verification passed:
+
+- Password sign-in, secure sessions, workspace initialization and installation-bound
+  keys; unauthenticated access and key management/edit attempts are rejected.
+- Public GitHub analysis completed on its first attempt. Malformed usernames show
+  all contributors with a notice; a separate blank-username run did the same.
+- The browser opened the saved report summary, metrics, limitations and feedback.
+  Owner edits persisted separately; stale edit revisions were rejected.
+- A worker restart was requested, then an explicit zero-instance stop and return
+  to the configured one instance was observed. A new instance processed a job
+  queued while stopped; the previous report and edited feedback were unchanged.
+- Scoped erasure removed both synthetic reports; receipt replay was stable,
+  recreation returned 410, and the temporary key was revoked and rejected.
+- Zero AI admissions occurred. Paid AI remains off. The live worker is restored
+  to the configured one instance with no scaling override.
+
+Private checksummed evidence is retained by the coordinator. No credentials,
+synthetic passwords, private cookies or generated report bundles belong in Git.
+
+## Next integration boundary
+
+Pika's production gate remains off. Its separate exact-target migration 293,
+publication of the reviewed feedback-import fix, protected production promotion,
+scoped credential binding and authenticated hosted integration checks are still
+required. This RepoLight approval did not authorize those Pika operations.
 
 The worker currently polls PostgreSQL every five seconds while idle. This keeps
 Neon compute active, so the Free database allowance should not be treated as a
