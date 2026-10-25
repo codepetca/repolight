@@ -171,7 +171,7 @@ export function SavedReportWorkspace() {
         </>}
       </div>
     </section>
-    {workspaceState === 'ready' && <PublicReportWorkspace key={loaded?.result.analysisId || 'new-analysis'} initialBundle={loaded?.result.bundle} initialTeacherEdits={loaded ? Object.fromEntries(loaded.edits.filter(edit => edit.text !== null).map(edit => [edit.scopeKey, edit.text!])) : undefined} analyzeRepository={enqueue} saveFeedback={loaded ? saveFeedback : undefined} />}
+    {workspaceState === 'ready' && <PublicReportWorkspace savedInterpretation={loaded ? {analysisId:loaded.result.analysisId,reportDigest:loaded.result.reportDigest} : undefined} key={loaded?.result.analysisId || 'new-analysis'} initialBundle={loaded?.result.bundle} initialTeacherEdits={loaded ? Object.fromEntries(loaded.edits.filter(edit => edit.text !== null).map(edit => [edit.scopeKey, edit.text!])) : undefined} analyzeRepository={enqueue} saveFeedback={loaded ? saveFeedback : undefined} />}
   </>
 }
 

@@ -36,6 +36,13 @@
       "when": 1792883676366,
       "tag": "0004_subject_erasures",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792892157553,
+      "tag": "0005_optional_interpretation",
+      "breakpoints": true
     }
   ]
 }

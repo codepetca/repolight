@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEventHandler, type FormEvent } 
 import { publicRepositoryBundleSchema, publicRepositoryRequestSchema, type PublicRepositoryBundle, type ReportContext, type ScopeFacts, type ScopeRuleFeedback, type PublicRepositoryRequest } from '@/lib/report/bundle-contract'
 import { periodFromDates } from '@/lib/report/public'
 import { formatDayInZone } from '@/lib/engine/time'
+import { ReportInterpretation, type SavedInterpretationSource } from './ReportInterpretation'
 import styles from './PublicReportWorkspace.module.css'
 
 const list = (value: string) => value.split(/[,\n]/).map(item => item.trim()).filter(Boolean)
@@ -13,13 +14,14 @@ type ReportView = ReportContext & ScopeFacts
 type DisplayResult = { analysis: { report: ReportView; ruleFeedback: ScopeRuleFeedback }; label: string; isOverview: boolean; isUnknownAuthor: boolean }
 
 export interface PublicReportWorkspaceProps {
+  savedInterpretation?: SavedInterpretationSource
   initialBundle?: PublicRepositoryBundle
   initialTeacherEdits?: Record<string, string>
   analyzeRepository?: (request: PublicRepositoryRequest) => Promise<PublicRepositoryBundle | null>
   saveFeedback?: (scopeKey: string, text: string) => Promise<void>
 }
 
-export function PublicReportWorkspace({initialBundle, initialTeacherEdits = {}, analyzeRepository, saveFeedback}: PublicReportWorkspaceProps = {}) {
+export function PublicReportWorkspace({initialBundle, initialTeacherEdits = {}, analyzeRepository, saveFeedback, savedInterpretation}: PublicReportWorkspaceProps = {}) {
   const [bundle, setBundle] = useState<PublicRepositoryBundle | null>(initialBundle || null)
   const [scope, setScope] = useState(initialBundle?.selection.status === 'matched' && initialBundle.selection.contributorId ? `contributor:${initialBundle.selection.contributorId}` : 'repository')
   const [teacherEdits, setTeacherEdits] = useState<Record<string, string>>(initialTeacherEdits)
@@ -205,7 +207,7 @@ export function PublicReportWorkspace({initialBundle, initialTeacherEdits = {}, 
       <Timeline report={result.analysis.report} />
       <Heatmap key={scope} report={result.analysis.report} />
       <CommitEvidence result={result} />
-      <section className={styles.panel} aria-labelledby="workflow-heading"><div className={styles.sectionHead}><div><h2 id="workflow-heading">Workflow observations</h2><p>Deterministic rules {result.analysis.ruleFeedback.rulesVersion}. These observations are prompts for teacher review.</p></div><span className="badge">Rule-based · no AI interpretation</span></div>
+      <section className={styles.panel} aria-labelledby="workflow-heading"><div className={styles.sectionHead}><div><h2 id="workflow-heading">Workflow observations</h2><p>Deterministic rules {result.analysis.ruleFeedback.rulesVersion}. These observations are prompts for teacher review.</p></div><span className="badge">Rule-based · teacher review</span></div>
         <div className={styles.observations}>{result.analysis.ruleFeedback.observations.map(observation => <article key={observation.id} className={styles.observation}>
           <span className={styles.eyebrow}>{readable(observation.kind)}</span><p>{observation.text}</p>
           <div className={styles.evidenceLinks}>{observation.evidence.map((evidence, index) => <a key={`${evidence.commitSha}-${index}`} href={`${result.analysis.report.repository.url}/commit/${evidence.commitSha}`} target="_blank" rel="noreferrer">{evidence.commitSha.slice(0, 7)}{evidence.path ? ` · ${evidence.path}` : ''} ↗</a>)}</div>
@@ -214,6 +216,7 @@ export function PublicReportWorkspace({initialBundle, initialTeacherEdits = {}, 
       </section>
       <button type="button" className="button secondary" onClick={() => setView('summary')}>Return to summary & feedback</button>
       </>}
+      {savedInterpretation && bundle && <ReportInterpretation {...savedInterpretation} bundle={bundle} scopeKey={scope} />}
     </div> : null}
   </main>
 }
