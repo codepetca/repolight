@@ -8,7 +8,7 @@ export default function ReportsPage() {
   return <div className="app-shell">
     <header className="topbar">
       <Link href="/" className="brand"><Brand /></Link>
-      <nav className="nav-links" aria-label="Primary"><Link href="/reports" aria-current="page">Reports</Link><Link href="/">Runs</Link></nav>
+      <nav className="nav-links" aria-label="Primary"><Link href="/reports" aria-current="page">Reports</Link><Link href="/workspace/reports">Saved reports</Link><Link href="/">Runs</Link></nav>
     </header>
     <PublicReportWorkspace />
   </div>

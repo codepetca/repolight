@@ -2,7 +2,7 @@
 
 ## Checkout and dependencies
 
-Use the pinned Node 22-compatible dependency set and npm lockfile. Recovery was verified on macOS with Node 22.21.1 and npm 10.9.4. `packageManager` records the original npm 11.6.2 preference; both npm 10 and npm 11 exposed the original lockfile defect before repair.
+Use Node 22.23.4 (see `.node-version`) and the pinned npm lockfile. The service upgrade uses Next 16.4.3/React 19.3.1 and npm 11.6.2; npm 10 clean-install compatibility was also checked. Use a task-local runtime when the global Node is older.
 
 ```sh
 npm ci
@@ -19,11 +19,11 @@ The Next app builds without database credentials. Database-backed registration, 
 
 For an app smoke check, run `npm run dev -- --hostname 127.0.0.1 --port 3047` with a randomly generated `SESSION_SECRET` in the process environment. Keep local secrets outside Git. Login-page rendering does not establish that authentication/database workflows work.
 
-The standalone `/reports` page works without a database. Synthetic examples remain available through `npm run report:sample`, not a product demo button. Live public collection uses the development/loopback-only `POST /api/reports/analyze` route. Production builds display the report UI but reject live collection. See `PUBLIC-REPORTS.md`; do not relax this gate as a substitute for hosted authentication, usage controls and the existing deployment blockers.
+The standalone `/reports` page works without a database. Synthetic examples remain available through `npm run report:sample`, not a product demo button. Its collection routes remain development/loopback-only. Authenticated Reports navigation opens `/workspace/reports`, backed by the separate durable `/api/v2/analyses` service. See [SERVICE.md](SERVICE.md) for runtime configuration, migration boundaries, worker operation and its versioned HTTP contract. The local preview is not a substitute for customer-scoped service authentication.
 
 ## Branch ownership
 
-Keep the hub `/Users/stew/Repos/repocat` on main. New implementation branches use a worktree under `/Users/stew/.codex/worktrees/repocat/<branch-slug>`, based on the intended remote revision. Inspect existing worktrees and preserve active/uncommitted work before creating or retiring one. Do not switch another writer's checkout or share staging/commit operations concurrently.
+Keep the hub `/Users/stew/Repos/repolight` on main. New implementation branches use a worktree under `/Users/stew/.codex/worktrees/repolight/<branch-slug>`, based on the intended remote revision. Inspect existing worktrees and preserve active/uncommitted work before creating or retiring one. Do not switch another writer's checkout or share staging/commit operations concurrently.
 
 There is no canonical shared RepoLight environment file configured. Create a private worktree-local `.env.local` only when needed and with a known local/test target; never copy credentials from an unrelated project. Install dependencies in each worktree rather than symlinking node_modules.
 

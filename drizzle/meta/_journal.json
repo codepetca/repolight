@@ -22,6 +22,27 @@
       "when": 1777393999725,
       "tag": "0002_living_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792882159830,
+      "tag": "0003_service_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792883676366,
+      "tag": "0004_subject_erasures",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792893070712,
+      "tag": "0005_optional_interpretation",
+      "breakpoints": true
     }
   ]
 }

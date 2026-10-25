@@ -83,3 +83,18 @@ The fictional `fixtures/reports/sky-hop.ts` reproduces 12 commits, density 1.333
 Tests additionally cover duplicates, unrelated authors, reviews, period-end exclusion, timezone/weekend attribution, unknown schedules, zero activity, baseline/bot/path exclusions, edits to supplied files, partial/unknown evidence, conflicting records, private-email omission, chronological ordering across offsets and interpretation reference validation.
 
 The local public-report flow now feeds this contract through a separate snapshot-pinned, coverage-aware method on the existing collector. Rule feedback is a versioned sidecar and does not populate the reserved AI interpretation field. See [PUBLIC-REPORTS.md](PUBLIC-REPORTS.md) for the executable HTTP/UI flow and limits. A hosted v2 HTTP API still requires tenant-scoped authentication and durable jobs, rather than exposing the existing shared-service-user auth as a SaaS boundary.
+
+
+## Contributor bundle contract 1.0
+
+The existing student-specific v2 report remains supported unchanged. A separate bundle (`schemaVersion: 1.0`) exposes scope-neutral repository and contributor reports without relabeling repository totals as student work. Its executable schemas/types are in `src/lib/report/bundle-contract.ts`.
+
+A bundle contains shared `context` (repository, snapshot, period, schedule, baseline, exclusions and metrics version), `collectionCoverage`, requested-user `selection`, a repository `overview`, and every included `contributors` entry. Each scope has `facts` and scope-specific rule feedback (`rulesVersion: 1.1.0`). Scope metrics use `commits`, not `studentCommits`. Timeline, heatmap, coverage, unavailable push timing and optional interpretation retain their evidence semantics.
+
+The public repository request uses one optional `githubUsername`. Missing/blank input chooses the overview. A normalized linked-account match chooses that contributor; malformed input or no included match chooses the overview with an explicit notice. A missing match describes collected evidence within the period/exclusion policy, not whether an account exists. The owner of a repository is never implicitly selected as the student. Shared dates/timezone, baseline and exclusion limits remain enforced.
+
+Collection runs once per analysis. Eligible evidence is partitioned: each included commit belongs to exactly one contributor and the overview reconciles with their disjoint union. Linked commits group by normalized GitHub login; distinct logins never merge because their email/name strings match. Unlinked commits group internally by known normalized email and use public opaque bucket refs; missing login and email form an explicitly uncertain unknown-author bucket that may represent several people. Email values and raw identity keys are never exported. Unlinked bucket refs are stable for the same collected snapshot, not promises of persistent person identity across changing history. The old v2 input retains its explicit email-alias matching; the new whole-repository bundle does not infer account ownership or silently attach unlinked authors to linked accounts.
+
+GitHub account type metadata labels users/bots when available; this does not verify who operated the account. Bots are visible and included unless an explicit exclusion removes them; repository totals must not be described as human/student-only work. Missing/conflicting account metadata remains unknown.
+
+Teacher edits are a consumer-owned map keyed by scope. Switching scope, summary or evidence preserves them; explicit restore changes only that scope; a new analysis gets a new edit map. JSON export retains the complete bundle and keyed edits regardless of visible scope. No AI generation is required for this contract.

@@ -9,8 +9,8 @@
 .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .field { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .field label, .feedbackLabel { font-size: 13px; font-weight: 680; }
-.field input, .field textarea, .feedback { border: 1px solid var(--border); border-radius: 7px; width: 100%; background: var(--surface); color: var(--text); padding: 11px 12px; min-width: 0; }
-.field input:focus-visible, .field textarea:focus-visible, .feedback:focus-visible, .workspace button:focus-visible, .workspace summary:focus-visible, .workspace a:focus-visible, .tableScroll:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.field input, .field textarea, .field select, .feedback { border: 1px solid var(--border); border-radius: 7px; width: 100%; background: var(--surface); color: var(--text); padding: 11px 12px; min-width: 0; }
+.field select:focus-visible, .field input:focus-visible, .field textarea:focus-visible, .feedback:focus-visible, .workspace button:focus-visible, .workspace summary:focus-visible, .workspace a:focus-visible, .tableScroll:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .field textarea { resize: vertical; line-height: 1.5; }
 .field small, .muted { color: var(--muted); line-height: 1.55; font-size: 12px; }
 .advanced { padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; overflow-wrap: anywhere; }
@@ -73,3 +73,8 @@
 .emptyIcon { display: inline-grid; place-items: center; width: 42px; height: 42px; background: var(--accent-soft); border-radius: 12px; color: var(--accent-strong); font-size: 19px; font-weight: 750; }
 @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sectionHead { flex-wrap: wrap; } .summaryGrid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .workspace { width: calc(100% - 24px); padding-top: 28px; } .panel { padding: 18px; border-radius: 10px; } .formGrid, .metadata { grid-template-columns: 1fr; } .metrics { gap: 10px; } .metric { padding: 16px; } .metric strong { font-size: 30px; } .intro > p:not(.eyebrow) { font-size: 15px; } .actions { align-items: stretch; flex-direction: column; } .actions button { width: 100%; } }
+
+.contributors { display: grid; gap: 12px; list-style: none; padding: 0; }
+.contributors li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; font-size: 12px; color: var(--muted); }
+
+.digest { overflow-wrap: anywhere; }

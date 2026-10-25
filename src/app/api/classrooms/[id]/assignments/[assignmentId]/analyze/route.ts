@@ -4,10 +4,11 @@ import { createAnalysisRunForAssignment } from '@/lib/classroom/service'
 
 export async function POST(
   _request: Request,
-  { params }: { params: { id: string; assignmentId: string } },
+  { params }: { params: Promise<{ id: string; assignmentId: string }> },
 ) {
+  const routeParams = await params
   return handleApi(async () => {
     const user = await requireUser()
-    return await createAnalysisRunForAssignment(user.id, params.id, params.assignmentId)
+    return await createAnalysisRunForAssignment(user.id, routeParams.id, routeParams.assignmentId)
   })
 }
