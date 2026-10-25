@@ -49,8 +49,12 @@ no PUBLIC execution grants. No Pika schema was changed.
 Vercel production deployment `dpl_FaaepPvXtb9sSguYiCDzoAQdH6ys` is READY and aliased
 to `https://repolight.vercel.app`. Its recorded Git SHA is reviewed
 `a08cce3581c22a4aff68899add3bfecd2459abdf` on local branch `codex/vercel-pilot`.
-This hosting branch is not yet published to GitHub and the project is not
-Git-connected; subsequent main pushes do not automatically update this deployment.
+Hosting [PR#10](https://github.com/codepetca/repolight/pull/10) merged at
+`1156fc87d847e35ee8af8d9284012990d24c7e1b`. Its runtime files are identical to the
+deployed source; later changes only record verification. Vercel rejected the Git
+connection with 409 because its Hobby plan does not support private organization
+repositories. The project remains unconnected and deployments remain manual. No
+plan, billing or repository visibility change was made.
 
 Actual hosted synthetic verification passed:
 
@@ -73,10 +77,16 @@ synthetic passwords, private cookies or generated report bundles belong in Git.
 
 ## Next integration boundary
 
-Pika's production gate remains off. Its separate exact-target migration 293,
-publication of the reviewed feedback-import fix, protected production promotion,
+Pika's production gate remains off. Its reviewed feedback-import fix
+[PR#1686](https://github.com/codepetca/pika/pull/1686) merged as
+`2dbc88756782109e67d2122eb5b3fe8dfb458799` after exact-head CI40210526971 passed
+all six selected jobs (four database/SDK lanes were intentionally skipped).
+Its separate exact-target migration 293, protected production promotion,
 scoped credential binding and authenticated hosted integration checks are still
-required. This RepoLight approval did not authorize those Pika operations.
+required. This RepoLight approval did not authorize those Pika production operations.
+The active Pika permission-check owner confirmed main-only CI/merge may proceed,
+while production source/configuration stays held through its actual completion or
+failure receipt. Preserve the current cohort, routing and provider holds.
 
 The worker currently polls PostgreSQL every five seconds while idle. This keeps
 Neon compute active, so the Free database allowance should not be treated as a
