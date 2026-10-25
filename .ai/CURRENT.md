@@ -4,15 +4,22 @@ RepoLight is live at https://repolight.vercel.app. Human approval on 2026-10-25
 covered the frozen migrations 0000–0005 on dedicated Neon `repolight-db` /
 `long-boat-34609339` / `neondb`; all six ledger hashes match. Vercel production
 `dpl_FaaepPvXtb9sSguYiCDzoAQdH6ys` serves reviewed `a08cce3581c22a4aff68899add3bfecd2459abdf`
-from local `codex/vercel-pilot`. The hosting config is not yet published to GitHub;
-the Vercel project is not Git-connected. Web and one 1 GiB analysis daemon in iad1
+from `codex/vercel-pilot`. Hosting [PR#10](https://github.com/codepetca/repolight/pull/10)
+merged at `1156fc87d847e35ee8af8d9284012990d24c7e1b`; the hub is synchronized.
+Vercel rejected Git connection because Hobby does not support private organization
+repositories. Deployment remains manual; no billing or visibility change was made. Web and one 1 GiB analysis daemon in iad1
 are ready. Real hosted auth, public collection, fallback, saved feedback, scoped
 key restrictions, stop/start queue recovery, erasure and revocation passed.
 Synthetic reports were erased and temporary keys revoked. [VERCEL.md](../docs/VERCEL.md)
 records target, deployment and remaining rollout boundaries. No paid AI calls.
 
 Pika production integration remains OFF; shared/prod293 was not applied or promoted.
-The reviewed repeat-import fix remains local in Pika at `d0970d700`. Local pilot
+The reviewed repeat-import fix is [Pika PR#1686](https://github.com/codepetca/pika/pull/1686)
+at `d0970d700`; exact-head CI is pending. Coordination with “Teacher vs student login”
+and “Audit Pika security and privacy” permits main-only CI/merge. Production source
+`9a845b2688060b78908e2c4103e5674bf0255324` and configuration are held through that
+owner’s actual permission-attempt3 completion/failure receipt. This is no migration
+or production-promotion approval. Local pilot
 proof is archived at `~/.codex/verification-archives/repolight-local-pilot-2026-10-25/`.
 Earlier checkpoints below are history, not current hosted-readiness claims.
 

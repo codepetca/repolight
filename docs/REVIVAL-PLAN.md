@@ -296,3 +296,22 @@ runtime receipt and idle-polling cost limitation.
 Pika shared/production migration 293 and promotion remain pending. Its reviewed
 repeat-import fix `d0970d700` remains local and unmerged. No Pika production gate
 or paid AI activation occurred.
+
+
+### Publication and Pika coordination — 2026-10-25
+
+Hosting PR#10 merged as `1156fc87d847e35ee8af8d9284012990d24c7e1b`; the RepoLight
+hub is synchronized. Runtime files match deployed `a08cce3`. Vercel rejected Git
+connection for the private organization repository on Hobby; deployment stays
+manual and neither billing nor visibility changed.
+
+Pika feedback fix PR#1686 publishes reviewed `d0970d700`; exact-head CI is pending.
+The owner explicitly requested coordination with existing Pika tasks. “Teacher vs
+student login” owns permission attempt3 on production `9a845b2688060b78908e2c4103e5674bf0255324`.
+It and “Audit Pika security and privacy” confirmed main-only CI/merge may proceed.
+Production source/configuration stays held until its actual completion/failure
+receipt; preserve existing cohort/routing/provider holds. Source inventory has
+293 on main, no294, and production source ends292; this does not establish live DB
+history. Exact-target preview, named migration approval and separate runtime
+promotion remain required. No competing live client, schema or production change
+was started. Private publication/rollout receipts retain the prepared next steps.
