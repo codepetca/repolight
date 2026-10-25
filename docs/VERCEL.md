@@ -77,16 +77,21 @@ synthetic passwords, private cookies or generated report bundles belong in Git.
 
 ## Next integration boundary
 
-Pika's production gate remains off. Its reviewed feedback-import fix
-[PR#1686](https://github.com/codepetca/pika/pull/1686) merged as
-`2dbc88756782109e67d2122eb5b3fe8dfb458799` after exact-head CI40210526971 passed
-all six selected jobs (four database/SDK lanes were intentionally skipped).
-Its separate exact-target migration 293, protected production promotion,
-scoped credential binding and authenticated hosted integration checks are still
-required. This RepoLight approval did not authorize those Pika production operations.
-The active Pika permission-check owner confirmed main-only CI/merge may proceed,
-while production source/configuration stays held through its actual completion or
-failure receipt. Preserve the current cohort, routing and provider holds.
+Pika's reviewed report/feedback code is now deployed through
+[PR#1687](https://github.com/codepetca/pika/pull/1687) at
+`dbd1f62c12b3be8f359d6c35fde77a27d7f77987`, with exact-SHA Vercel READY and all ten
+CI40222687057 jobs passed. Separate human approval covered production migration
+293 and its coordinated schema/app window. [Run40226843818](https://github.com/codepetca/pika/actions/runs/40226843818)
+applied only293 and verified the approved digest/history001–293. Direct installed
+catalog, RLS/ACL, function-preservation, trigger and archive checks passed. The
+public sign-in page and anonymous API boundaries passed; existing cohort/provider
+controls were unchanged. Shared local was untouched and the window is closed.
+
+Analyze remains OFF in Pika's server configuration and database setting; optional
+RepoLight AI remains OFF. Teacher/workspace/installation key binding and an
+authenticated hosted Pika → RepoLight pilot remain required. The Pika integration
+guide and receipt PR#1689 record the known standalone archive-inventory diagnostic
+limitation; it was not reported passing. Preserve separate cohort/provider holds.
 
 The worker currently polls PostgreSQL every five seconds while idle. This keeps
 Neon compute active, so the Free database allowance should not be treated as a
