@@ -305,7 +305,9 @@ hub is synchronized. Runtime files match deployed `a08cce3`. Vercel rejected Git
 connection for the private organization repository on Hobby; deployment stays
 manual and neither billing nor visibility changed.
 
-Pika feedback fix PR#1686 publishes reviewed `d0970d700`; exact-head CI is pending.
+Pika feedback fix PR#1686 merged reviewed `d0970d700` as
+`2dbc88756782109e67d2122eb5b3fe8dfb458799`. CI40210526971 passed all six selected
+jobs, with four planned database/SDK skips; the Pika hub is synchronized.
 The owner explicitly requested coordination with existing Pika tasks. “Teacher vs
 student login” owns permission attempt3 on production `9a845b2688060b78908e2c4103e5674bf0255324`.
 It and “Audit Pika security and privacy” confirmed main-only CI/merge may proceed.

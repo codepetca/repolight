@@ -15,7 +15,9 @@ records target, deployment and remaining rollout boundaries. No paid AI calls.
 
 Pika production integration remains OFF; shared/prod293 was not applied or promoted.
 The reviewed repeat-import fix is [Pika PR#1686](https://github.com/codepetca/pika/pull/1686)
-at `d0970d700`; exact-head CI is pending. Coordination with “Teacher vs student login”
+at reviewed `d0970d700`, merged as `2dbc88756782109e67d2122eb5b3fe8dfb458799`.
+[CI40210526971](https://github.com/codepetca/pika/actions/runs/40210526971) passed
+all six selected jobs, with four planned database/SDK skips; the hub is synchronized. Coordination with “Teacher vs student login”
 and “Audit Pika security and privacy” permits main-only CI/merge. Production source
 `9a845b2688060b78908e2c4103e5674bf0255324` and configuration are held through that
 owner’s actual permission-attempt3 completion/failure receipt. This is no migration

@@ -77,9 +77,11 @@ synthetic passwords, private cookies or generated report bundles belong in Git.
 
 ## Next integration boundary
 
-Pika's production gate remains off. Its separate exact-target migration 293,
-merge of the reviewed feedback-import fix [PR#1686](https://github.com/codepetca/pika/pull/1686),
-protected production promotion,
+Pika's production gate remains off. Its reviewed feedback-import fix
+[PR#1686](https://github.com/codepetca/pika/pull/1686) merged as
+`2dbc88756782109e67d2122eb5b3fe8dfb458799` after exact-head CI40210526971 passed
+all six selected jobs (four database/SDK lanes were intentionally skipped).
+Its separate exact-target migration 293, protected production promotion,
 scoped credential binding and authenticated hosted integration checks are still
 required. This RepoLight approval did not authorize those Pika production operations.
 The active Pika permission-check owner confirmed main-only CI/merge may proceed,
