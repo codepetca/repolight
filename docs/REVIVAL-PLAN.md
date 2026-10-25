@@ -275,3 +275,24 @@ Eleventh Astra/high review completed all ten two-way0c→55f deltafiles cleanly.
 | Durable plan and safe cleanup | This single ledger plus CURRENT; private verified histories/proofs/retirement receipts; Pika hub main synchronized, canonical environment/data protected. |
 
 Final merge preflight checked the exact reviewed head, all ten successful CI jobs, requiredPRGate, current main19b5abab9, mergeability, zero unresolved threads and no changes-requested reviews. Squash merge verified13:18:29UTC (09:18:29America/Toronto) as1b9ef0c49. Source workflow flags, credentials and shared databases were not activated. The remaining work is a separately authorized operational rollout, with the concrete boundaries above.
+
+
+### Vercel hosted pilot activated — 2026-10-25
+
+Human approval covered the frozen migrations 0000–0005 on dedicated Neon
+`repolight-db` / `long-boat-34609339` / `neondb`. All six ledger hashes match;
+19 application tables, service RLS and no PUBLIC function execution were verified.
+Reviewed runtime `a08cce3` is live at https://repolight.vercel.app through production
+`dpl_FaaepPvXtb9sSguYiCDzoAQdH6ys`, with one 1 GiB daemon in iad1.
+
+Actual hosted authentication, scoped keys, public collection, contributor fallback
+and edited feedback passed. Stopping and restoring the worker demonstrated queued
+work recovery and preservation of saved reports/edits. Scoped erasure, tombstone,
+receipt replay and revocation passed. Synthetic reports were erased, temporary
+keys revoked, and AI admissions remained zero. Hosting configuration remains local
+on `codex/vercel-pilot`; the project is not Git-connected. See VERCEL.md for the
+runtime receipt and idle-polling cost limitation.
+
+Pika shared/production migration 293 and promotion remain pending. Its reviewed
+repeat-import fix `d0970d700` remains local and unmerged. No Pika production gate
+or paid AI activation occurred.

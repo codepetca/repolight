@@ -1,5 +1,23 @@
 # Checkpoint — 2026-10-25 (America/Toronto)
 
+RepoLight is live at https://repolight.vercel.app. Human approval on 2026-10-25
+covered the frozen migrations 0000–0005 on dedicated Neon `repolight-db` /
+`long-boat-34609339` / `neondb`; all six ledger hashes match. Vercel production
+`dpl_FaaepPvXtb9sSguYiCDzoAQdH6ys` serves reviewed `a08cce3581c22a4aff68899add3bfecd2459abdf`
+from local `codex/vercel-pilot`. The hosting config is not yet published to GitHub;
+the Vercel project is not Git-connected. Web and one 1 GiB analysis daemon in iad1
+are ready. Real hosted auth, public collection, fallback, saved feedback, scoped
+key restrictions, stop/start queue recovery, erasure and revocation passed.
+Synthetic reports were erased and temporary keys revoked. [VERCEL.md](../docs/VERCEL.md)
+records target, deployment and remaining rollout boundaries. No paid AI calls.
+
+Pika production integration remains OFF; shared/prod293 was not applied or promoted.
+The reviewed repeat-import fix remains local in Pika at `d0970d700`. Local pilot
+proof is archived at `~/.codex/verification-archives/repolight-local-pilot-2026-10-25/`.
+Earlier checkpoints below are history, not current hosted-readiness claims.
+
+## Historical pre-activation checkpoint
+
 The RepoLight public-repository workflow is implemented, locally verified and published. Contributor-aware reports, the durable authenticated service, Pika report/feedback review and separately optional AI interpretation are delivered. The single milestone, review and evidence ledger is [REVIVAL-PLAN.md](../docs/REVIVAL-PLAN.md); dated earlier checkpoints are history.
 
 RepoLight feature [PR#8](https://github.com/codepetca/repolight/pull/8) merged at `f21f6a70364cc1a9b21a9156a8a734bee9961da7`. This handoff changes documentation only; application source remains identical to that merge. The canonical hub is `/Users/stew/Repos/repolight` on main.
