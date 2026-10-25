@@ -30,7 +30,7 @@ describe('ReportInterpretation',()=>{
     expect(fetchMock.mock.calls[0]).toEqual(expect.arrayContaining([expect.any(String),expect.objectContaining({method:'GET',credentials:'same-origin',cache:'no-store'})]))
   })
   it('generates only on explicit action and displays locally checked citations and provenance',async()=>{
-    const fetchMock = vi.fn(async(_path:string,options:RequestInit)=>response(options.method === 'POST' ? available() : reply()))
+    const fetchMock = vi.fn(async(_path:string,options:RequestInit)=>response(options.method === 'POST' ? {...available(),requestId:JSON.parse(options.body as string).requestId} : reply()))
     vi.stubGlobal('fetch',fetchMock)
     render(panel())
     const generate = await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true})
@@ -113,7 +113,7 @@ describe('ReportInterpretation',()=>{
       if(options.method !== 'POST') return response(reply())
       ids.push(JSON.parse(options.body as string).requestId)
       if(++posts === 1) throw new Error('Connection interrupted. Your report and feedback are unchanged.')
-      return response(reply({state:'failed',error:'provider_timeout'}))
+      return response(reply({state:'failed',error:'provider_timeout',requestId:ids.at(-1)!}))
     }))
     render(panel())
     fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
@@ -123,6 +123,115 @@ describe('ReportInterpretation',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Retry AI interpretation',hidden:true}))
     await waitFor(()=>expect(ids).toHaveLength(3))
     expect(ids[0]).toBe(ids[1]);expect(ids[2]).not.toBe(ids[1])
+  })
+  it.each(['available','failed'] as const)('preserves an uncertain intent when progress returns an older %s request',async oldState=>{
+    const oldId='10000000-0000-4000-8000-000000000099'
+    const older = {...available(),requestId:oldId}
+    const ids:string[]=[]
+    let reads=0
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method !== 'POST') {
+        if(++reads === 1) return response(older)
+        return response(oldState === 'available' ? older : reply({state:'failed',error:'provider_timeout',requestId:oldId}))
+      }
+      ids.push(JSON.parse(options.body as string).requestId)
+      if(ids.length === 1) throw new Error('Connection interrupted.')
+      return response({...available(),requestId:ids.at(-1)!})
+    }))
+    render(panel())
+    fireEvent.click(await screen.findByRole('button',{name:'Generate new interpretation',hidden:true}))
+    await screen.findByText('Connection interrupted.')
+    fireEvent.click(screen.getByRole('button',{name:'Check interpretation progress',hidden:true}))
+    await screen.findByText(/does not confirm the current request/)
+    fireEvent.click(screen.getByRole('button',{name:'Retry interpretation request',hidden:true}))
+    await screen.findByRole('button',{name:'Generate new interpretation',hidden:true})
+    expect(ids).toHaveLength(2);expect(ids[0]).toBe(ids[1])
+    // A matching terminal reply released the intent, so this is a new explicit generation.
+    fireEvent.click(screen.getByRole('button',{name:'Generate new interpretation',hidden:true}))
+    await waitFor(()=>expect(ids).toHaveLength(3))
+    expect(ids[2]).not.toBe(ids[1])
+  })
+  it('polls only reads for its matching pending intent and releases it after matching terminal progress',async()=>{
+    vi.useFakeTimers({toFake:['setTimeout','clearTimeout']})
+    const ids:string[]=[]
+    let progress=0
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method === 'POST') {
+        ids.push(JSON.parse(options.body as string).requestId)
+        return response(reply({state:'pending',requestId:ids.at(-1)!}))
+      }
+      if(!ids.length) return response(reply())
+      return response(reply({requestId:ids.at(-1)!,state:++progress === 1 ? 'pending' : 'failed',error:progress === 1 ? null : 'provider_timeout'}))
+    }))
+    await act(async()=>{render(panel())})
+    await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Generate AI interpretation',hidden:true}))})
+    await act(async()=>{await vi.advanceTimersByTimeAsync(1500)})
+    expect(ids).toHaveLength(1);expect(progress).toBe(1)
+    await act(async()=>{await vi.advanceTimersByTimeAsync(3000)})
+    expect(progress).toBe(2);expect(ids).toHaveLength(1)
+    await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Retry AI interpretation',hidden:true}))})
+    expect(ids).toHaveLength(2);expect(ids[0]).not.toBe(ids[1])
+  })
+  it('accepts generation paused between the initial read and explicit POST without an uncertain intent',async()=>{
+    const ids:string[]=[]
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method !== 'POST') return response(reply())
+      ids.push(JSON.parse(options.body as string).requestId)
+      return response(reply({enabled:false,state:'disabled'}))
+    }))
+    render(panel())
+    fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
+    await screen.findByText(/AI interpretation is paused/)
+    expect(screen.queryByText(/does not match the requested interpretation/)).toBeNull()
+    expect(screen.queryByRole('button',{name:/Generate|Retry interpretation request/,hidden:true})).toBeNull()
+    fireEvent.click(screen.getByRole('button',{name:'Check interpretation progress',hidden:true}))
+    fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
+    await waitFor(()=>expect(ids).toHaveLength(2))
+    expect(ids[0]).not.toBe(ids[1])
+  })
+  it('shows a documented configuration-unavailable nonadmission and starts a fresh explicit retry',async()=>{
+    const ids:string[]=[]
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method !== 'POST') return response(reply())
+      ids.push(JSON.parse(options.body as string).requestId)
+      return response(reply({state:'failed',error:'configuration_unavailable'}))
+    }))
+    render(panel())
+    fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
+    await screen.findByText(/could not be generated \(configuration unavailable\)/)
+    expect(screen.queryByText(/does not match the requested interpretation/)).toBeNull()
+    fireEvent.click(screen.getByRole('button',{name:'Retry AI interpretation',hidden:true}))
+    await waitFor(()=>expect(ids).toHaveLength(2))
+    expect(ids[0]).not.toBe(ids[1])
+  })
+  it.each(['available','pending'] as const)('rejects a null request id for an admitted %s response',async state=>{
+    const ids:string[]=[]
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method !== 'POST') return response(reply())
+      ids.push(JSON.parse(options.body as string).requestId)
+      return response(state === 'available' ? available() : reply({state:'pending'}))
+    }))
+    render(panel())
+    fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
+    await screen.findByText(/does not match the requested interpretation/)
+    fireEvent.click(screen.getByRole('button',{name:'Retry interpretation request',hidden:true}))
+    await waitFor(()=>expect(ids).toHaveLength(2))
+    expect(ids[0]).toBe(ids[1])
+  })
+  it('rejects a POST reply for another request and retains its exact retry intent',async()=>{
+    const ids:string[]=[]
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method !== 'POST') return response(reply())
+      ids.push(JSON.parse(options.body as string).requestId)
+      return response({...available(),requestId:'10000000-0000-4000-8000-000000000099'})
+    }))
+    render(panel())
+    fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
+    await screen.findByText(/does not match the requested interpretation/)
+    expect(screen.queryByText('Review the measured activity with the student.')).toBeNull()
+    fireEvent.click(screen.getByRole('button',{name:'Retry interpretation request',hidden:true}))
+    await waitFor(()=>expect(ids).toHaveLength(2))
+    expect(ids[0]).toBe(ids[1])
   })
   it('preserves scoped teacher drafts through AI failure and evidence navigation; public preview makes no requests',async()=>{
     const fetchMock=vi.fn(async(_path:string,options:RequestInit)=> options.method==='POST' ? response({error:{code:'forbidden'}},403) : response(reply()))

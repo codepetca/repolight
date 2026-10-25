@@ -45,11 +45,12 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
   const path = `/api/v2/analyses/${encodeURIComponent(analysisId)}/interpretation?scopeKey=${encodeURIComponent(scopeKey)}`
 
   async function request(method: 'GET' | 'POST', version: number): Promise<InterpretationResponse | null> {
+    const submittedIntent = method === 'POST' ? intent.current : null
     const controller = new AbortController()
     controllers.current.add(controller)
     const timeout = setTimeout(() => controller.abort(), 35000)
     try {
-      const response = await fetch(path,{method,credentials:'same-origin',cache:'no-store',signal:controller.signal,...(method === 'POST' ? {headers:{'Content-Type':'application/json'},body:JSON.stringify({schemaVersion:'1.0',requestId:intent.current,scopeKey})} : {})})
+      const response = await fetch(path,{method,credentials:'same-origin',cache:'no-store',signal:controller.signal,...(method === 'POST' ? {headers:{'Content-Type':'application/json'},body:JSON.stringify({schemaVersion:'1.0',requestId:submittedIntent,scopeKey})} : {})})
       if (!live.current || version !== generation.current) return null
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) setForbidden(true)
@@ -60,8 +61,11 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
       const next = parsed.data
       if (!live.current || version !== generation.current) return null
       if (bundle.bundleRef !== analysisId || !scope || (next.state === 'available') !== (next.interpretation !== null) || next.scopeKey !== scopeKey || (next.interpretation && (next.state !== 'available' || next.interpretation.provenance.scopeKey !== scopeKey || next.interpretation.provenance.reportDigest !== reportDigest || next.interpretation.citations.some(cite => {const local = localCitation(cite.sourceKey,bundle,scope);return local.value !== cite.value || local.status !== cite.status})))) throw new Error('The AI interpretation does not match this report view. Your report and feedback are unchanged.')
-      setReply(next);setError('')
-      if (next.state === 'failed' || next.state === 'available') intent.current = null
+      const notAdmitted = method === 'POST' && next.requestId === null && next.interpretation === null && ((next.state === 'disabled' && !next.enabled && next.error === null) || (next.state === 'failed' && next.enabled && next.error === 'configuration_unavailable'))
+      if (method === 'POST' && !notAdmitted && (!submittedIntent || next.requestId !== submittedIntent)) throw new Error('The response does not match the requested interpretation. Retry the same request or check progress. Your report and feedback are unchanged.')
+      if (method === 'GET' && intent.current && next.requestId !== intent.current) throw new Error('This progress response does not confirm the current request. Retry the same interpretation request or check progress later. Your report and feedback are unchanged.')
+      setReply(next);setError(notAdmitted && next.state === 'disabled' ? 'AI interpretation is paused. Your report and feedback are unchanged.' : '')
+      if (notAdmitted || ((next.state === 'failed' || next.state === 'available') && next.requestId === intent.current)) intent.current = null
       return next
     } catch (caught) {
       if (controller.signal.aborted) throw new Error('AI interpretation timed out. Check progress before retrying. Your report and feedback are unchanged.')

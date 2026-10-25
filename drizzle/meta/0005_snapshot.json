@@ -1,5 +1,5 @@
 {
-  "id": "2198fa48-8942-4f5b-9314-542ddacacca6",
+  "id": "65750e7a-43d5-4118-af4e-d22757f0d188",
   "prevId": "1fbbb45c-3b50-4b68-9232-14f66aa34e12",
   "version": "7",
   "dialect": "postgresql",
@@ -2267,6 +2267,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "active_until": {
+          "name": "active_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -2353,6 +2360,12 @@
         },
         "request_id": {
           "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "admission_id": {
+          "name": "admission_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true

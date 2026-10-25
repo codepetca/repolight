@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { createNeonSqlExecutor, type SqlExecutor } from '@/lib/service/sql-executor'
 import { interpretationSidecarSchema, type InterpretationSidecar, type InterpretationError } from './contract'
 import type { interpretationEvidence } from './evidence'
-export interface InterpretationRow { id: string; workspaceId: string; jobId: string; requestId: string; scopeKey: string; state: 'generating' | 'available' | 'failed'; leaseToken: string; leaseExpiresAt: string; model: string; inputDigest: string; reportDigest: string; createdAt: string; sidecar: InterpretationSidecar | null; error: InterpretationError | null }
+export interface InterpretationRow { id: string; workspaceId: string; jobId: string; requestId: string; admissionId: string; scopeKey: string; state: 'generating' | 'available' | 'failed'; leaseToken: string; leaseExpiresAt: string; model: string; inputDigest: string; reportDigest: string; createdAt: string; sidecar: InterpretationSidecar | null; error: InterpretationError | null }
 export interface Reservation { workspaceId: string; jobId: string; requestId: string; scopeKey: string; model: string; reportDigest: string; evidence: ReturnType<typeof interpretationEvidence> }
 export interface InterpretationStore {
   recover(workspaceId: string): Promise<void>;
@@ -12,7 +12,7 @@ export interface InterpretationStore {
   finish(row: InterpretationRow, sidecar: InterpretationSidecar | null, error: InterpretationError | null): Promise<boolean>;
 }
 const stamp = (value: unknown) => new Date(String(value)).toISOString()
-function row(value: Record<string, unknown>): InterpretationRow { return { id: String(value.id), workspaceId: String(value.workspace_id), jobId: String(value.job_id), requestId: String(value.request_id), scopeKey: String(value.scope_key), state: value.state as InterpretationRow['state'], leaseToken: String(value.lease_token), leaseExpiresAt: stamp(value.lease_expires_at), model: String(value.model), inputDigest: String(value.input_digest), reportDigest: String(value.report_digest), createdAt: stamp(value.created_at), sidecar: value.sidecar_json == null ? null : interpretationSidecarSchema.parse(value.sidecar_json), error: value.error_code as InterpretationError | null } }
+function row(value: Record<string, unknown>): InterpretationRow { return { id: String(value.id), workspaceId: String(value.workspace_id), jobId: String(value.job_id), requestId: String(value.request_id), admissionId: String(value.admission_id), scopeKey: String(value.scope_key), state: value.state as InterpretationRow['state'], leaseToken: String(value.lease_token), leaseExpiresAt: stamp(value.lease_expires_at), model: String(value.model), inputDigest: String(value.input_digest), reportDigest: String(value.report_digest), createdAt: stamp(value.created_at), sidecar: value.sidecar_json == null ? null : interpretationSidecarSchema.parse(value.sidecar_json), error: value.error_code as InterpretationError | null } }
 export function createInterpretationStore(provided?: SqlExecutor): InterpretationStore {
   let executor = provided
   const query = <T extends Record<string, unknown>>(text: string, args: unknown[]) => (executor ?? (executor = createNeonSqlExecutor(process.env.DATABASE_URL || ''))).query<T>(text, args)

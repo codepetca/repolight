@@ -87,6 +87,14 @@ describe('optional interpretation isolation', () => {
     await expect(generateInterpretation(evidence, { model: 'operator-configured', apiKey: 'synthetic' }, vi.fn(async () => new Response('private payload', { headers: { 'content-length': '100000' } })))).rejects.toMatchObject({ code: 'invalid_output' })
     await expect(generateInterpretation(evidence, { model: 'operator-configured', apiKey: 'synthetic' }, vi.fn(async () => new Response('private token', { status: 500 })))).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
+  it.each(['non_ok', 'oversized_header', 'oversized_stream'] as const)('does not await a never-settling body cancellation on %s', async scenario => {
+    const cancel = vi.fn(() => new Promise<void>(() => {}))
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { if (scenario === 'oversized_stream') controller.enqueue(new Uint8Array(65_537)) }, cancel })
+    const response = new Response(stream, { status: scenario === 'non_ok' ? 500 : 200, headers: scenario === 'oversized_header' ? { 'content-length': '100000' } : {} })
+    const config = { model: 'operator-configured', apiKey: 'synthetic' }
+    await expect(generateInterpretation(interpretationEvidence(result(), 'repository'), config, vi.fn(async () => response))).rejects.toMatchObject({ code: scenario === 'non_ok' ? 'provider_unavailable' : 'invalid_output' })
+    expect(cancel).toHaveBeenCalledOnce()
+  })
   it('requires owner session, exact origin, correct workspace/report and a known scope', async () => {
     const value = setup(), input = { schemaVersion: '1.0', requestId: randomUUID(), scopeKey: 'repository' }
     expect((await value.api.post(request(input, { authorization: 'Bearer machine-key' }), jobId)).status).toBe(403)

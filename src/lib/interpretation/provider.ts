@@ -20,6 +20,10 @@ function abortable<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
     task.then(value => { signal.removeEventListener('abort', abort); resolve(value) }, error => { signal.removeEventListener('abort', abort); reject(error) })
   })
 }
+function cancelBestEffort(stream: { cancel(): Promise<unknown> } | null | undefined): void {
+  // Cancellation is resource cleanup, never part of the bounded response path.
+  try { void stream?.cancel().catch(() => {}) } catch { /* Cleanup must not delay or replace the safe failure. */ }
+}
 export async function generateInterpretation(evidence: ReturnType<typeof interpretationEvidence>, config: { model: string; apiKey: string }, fetchImpl: typeof fetch = fetch, signal?: AbortSignal): Promise<InterpretationSidecar['observations']> {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 20_000)
   const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
@@ -29,12 +33,12 @@ export async function generateInterpretation(evidence: ReturnType<typeof interpr
   try {
     if (combined.aborted) throw new InterpretationFailure('provider_timeout')
     const response = await abortable(fetchImpl('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' }, body, signal: combined, redirect: 'error', cache: 'no-store' }), combined)
-    if (!response.ok) { await response.body?.cancel(); throw new InterpretationFailure('provider_unavailable') }
-    if (Number(response.headers.get('content-length') || 0) > 65_536) { await response.body?.cancel(); throw new InterpretationFailure('invalid_output') }
+    if (!response.ok) { cancelBestEffort(response.body); throw new InterpretationFailure('provider_unavailable') }
+    if (Number(response.headers.get('content-length') || 0) > 65_536) { cancelBestEffort(response.body); throw new InterpretationFailure('invalid_output') }
     const reader = response.body?.getReader()
     if (!reader) throw new InterpretationFailure('invalid_output')
     const chunks: Uint8Array[] = []; let bytes = 0
-    try { while (true) { const next = await abortable(reader.read(), combined); if (next.done) break; bytes += next.value.byteLength; if (bytes > 65_536) { await reader.cancel(); throw new InterpretationFailure('invalid_output') }; chunks.push(next.value) } } finally { if (combined.aborted) void reader.cancel().catch(() => {}); try { reader.releaseLock() } catch { /* Native stream cancellation may still be settling. */ } }
+    try { while (true) { const next = await abortable(reader.read(), combined); if (next.done) break; bytes += next.value.byteLength; if (bytes > 65_536) { cancelBestEffort(reader); throw new InterpretationFailure('invalid_output') }; chunks.push(next.value) } } finally { if (combined.aborted) cancelBestEffort(reader); try { reader.releaseLock() } catch { /* Native stream cancellation may still be settling. */ } }
     const raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)))
     if (raw.status === 'incomplete') throw new InterpretationFailure('provider_incomplete')
     if (raw.status !== 'completed' || !Array.isArray(raw.output)) throw new InterpretationFailure('invalid_output')

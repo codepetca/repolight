@@ -1,7 +1,8 @@
 // @vitest-environment node
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { Pool, type PoolClient } from 'pg'
+import { createInterpretationApi } from '@/lib/interpretation/api'
 import { createServiceStore } from '@/lib/service/store'
 import { createInterpretationStore, type InterpretationStore, type Reservation } from '@/lib/interpretation/store'
 import { interpretationEvidence } from '@/lib/interpretation/evidence'
@@ -38,9 +39,9 @@ describe.skipIf(!target)('optional interpretation atomic ledger', () => {
     await pool.query('DELETE FROM public.rl_interpretation_admissions WHERE id=ANY($1::uuid[])', [ids])
   })
   afterAll(async () => { try { await release?.() } finally { await pool?.end() } })
-  async function reservation(index = 0): Promise<Reservation> {
+  async function reservation(index = 0, subjectRef = 'subject'): Promise<Reservation> {
     const workspace = workspaces[index]
-    const queued = await services.enqueueAnalysis({ workspaceId: workspace.id, idempotencyKey: randomUUID(), request: settings, requestFingerprint: digestJson(settings), clientBinding: { installationRef: 'ai-fixture', subjectRef: 'subject', sourceRevisionRef: 'revision' } })
+    const queued = await services.enqueueAnalysis({ workspaceId: workspace.id, idempotencyKey: randomUUID(), request: settings, requestFingerprint: digestJson(settings), clientBinding: { installationRef: 'ai-fixture', subjectRef, sourceRevisionRef: 'revision' } })
     if (queued.kind !== 'accepted') throw new Error('fixture admission')
     const token = randomUUID()
     await pool.query("UPDATE public.rl_analysis_jobs SET status='running',attempt_count=1,lease_generation=1,lease_token=$2,lease_expires_at=clock_timestamp()+interval '90 seconds',worker_id='ai-fixture' WHERE id=$1", [queued.job.id, token])
@@ -117,6 +118,37 @@ describe.skipIf(!target)('optional interpretation atomic ledger', () => {
       expect(await store.find(input.workspaceId, input.requestId)).toBeNull()
       expect(await store.finish(admitted.row, null, 'provider_timeout')).toBe(false)
     } finally { await completing.query('ROLLBACK'); completing.release(); erasing.release() }
+  })
+  it('keeps a held provider request counted after subject erasure until its independent lease expires', async () => {
+    const original = await reservation()
+    let release!: (response: Response) => void
+    const output = () => Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ observations: [] }) }] }] })
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementationOnce(() => new Promise(resolve => { release = resolve })).mockImplementation(async () => output())
+    const api = createInterpretationApi(services, store, async () => ({ id: owners[0] }), { fetchImpl, config: () => ({ enabled: true, model: 'synthetic-operator-model', apiKey: 'synthetic-key' }) })
+    const post = (input: Reservation) => new Request(`https://reports.example/api/v2/analyses/${input.jobId}/interpretation`, { method: 'POST', headers: { origin: 'https://reports.example', 'content-type': 'application/json' }, body: JSON.stringify({ schemaVersion: '1.0', requestId: input.requestId, scopeKey: 'repository' }) })
+    const held = api.post(post(original), original.jobId)
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce())
+    await services.eraseSubject({ workspaceId: original.workspaceId, request: { schemaVersion: '1.0', operationRef: randomUUID(), installationRef: 'ai-fixture', subjectRef: 'subject' } })
+    const replacement = await reservation(0, 'replacement-subject')
+    expect((await api.post(post(replacement), replacement.jobId)).status).toBe(429)
+    expect(fetchImpl).toHaveBeenCalledOnce()
+    release(output())
+    expect((await held).status).toBe(404)
+    expect((await api.post(post(replacement), replacement.jobId)).status).toBe(429)
+    await pool.query("UPDATE public.rl_interpretation_admissions SET active_until=clock_timestamp()-interval '1 second' WHERE workspace_id=$1", [original.workspaceId])
+    expect((await api.post(post(replacement), replacement.jobId)).status).toBe(200)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect((await pool.query('SELECT count(*)::int AS n FROM public.rl_interpretation_admissions WHERE workspace_id=$1 AND active_until>clock_timestamp()', [original.workspaceId])).rows[0].n).toBe(0)
+  })
+  it('preserves the global two-request limit when both generating sidecars are erased', async () => {
+    const a = await reservation(), b = await reservation(1)
+    expect((await store.reserve(a)).kind).toBe('admitted')
+    expect((await store.reserve(b)).kind).toBe('admitted')
+    for (const input of [a,b]) await services.eraseSubject({ workspaceId: input.workspaceId, request: { schemaVersion: '1.0', operationRef: randomUUID(), installationRef: 'ai-fixture', subjectRef: 'subject' } })
+    const c = await reservation(2)
+    expect((await store.reserve(c)).kind).toBe('limited')
+    await pool.query("UPDATE public.rl_interpretation_admissions SET active_until=clock_timestamp()-interval '1 second' WHERE workspace_id=ANY($1::uuid[])", [[a.workspaceId,b.workspaceId]])
+    expect((await store.reserve(c)).kind).toBe('admitted')
   })
   it('enforces global100admissions independently of sidecar deletion and tenant creation', async () => {
     const input = await reservation()

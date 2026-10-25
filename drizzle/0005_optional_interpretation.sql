@@ -1,7 +1,8 @@
 CREATE TABLE "rl_interpretation_admissions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"active_until" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "rl_interpretation_admissions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -10,6 +11,7 @@ CREATE TABLE "rl_interpretations" (
 	"workspace_id" uuid NOT NULL,
 	"job_id" uuid NOT NULL,
 	"request_id" uuid NOT NULL,
+	"admission_id" uuid NOT NULL,
 	"scope_key" text NOT NULL,
 	"model" text NOT NULL,
 	"report_digest" text NOT NULL,
@@ -49,7 +51,7 @@ END $$;
 REVOKE ALL ON FUNCTION public.rl_recover_interpretations(uuid) FROM PUBLIC;
 --> statement-breakpoint
 CREATE FUNCTION public.rl_reserve_interpretation(p_workspace uuid,p_job uuid,p_request uuid,p_scope text,p_model text,p_report_digest text,p_input_digest text,p_input jsonb,p_citations jsonb) RETURNS jsonb LANGUAGE plpgsql SET search_path='' AS $$
-DECLARE v_existing public.rl_interpretations; v_row public.rl_interpretations;
+DECLARE v_existing public.rl_interpretations; v_row public.rl_interpretations; v_admission uuid := gen_random_uuid(); v_until timestamptz;
 BEGIN
  -- Same first lock as erasure; never lock/recover another workspace's rows.
  PERFORM 1 FROM public.rl_workspaces WHERE id=p_workspace FOR UPDATE;
@@ -68,11 +70,12 @@ BEGIN
  DELETE FROM public.rl_interpretation_admissions WHERE created_at<=clock_timestamp()-interval '24 hours';
  IF (SELECT count(*) FROM public.rl_interpretation_admissions)>=100
  OR (SELECT count(*) FROM public.rl_interpretation_admissions WHERE workspace_id=p_workspace)>=10
- OR (SELECT count(*) FROM public.rl_interpretations WHERE state='generating' AND lease_expires_at>clock_timestamp())>=2
- OR EXISTS(SELECT 1 FROM public.rl_interpretations WHERE workspace_id=p_workspace AND state='generating' AND lease_expires_at>clock_timestamp()) THEN RETURN jsonb_build_object('kind','limited'); END IF;
- INSERT INTO public.rl_interpretations(workspace_id,job_id,request_id,scope_key,model,report_digest,input_digest,input_json,citations_json,lease_expires_at)
- VALUES(p_workspace,p_job,p_request,p_scope,p_model,p_report_digest,p_input_digest,p_input,p_citations,clock_timestamp()+interval '60 seconds') RETURNING * INTO v_row;
- INSERT INTO public.rl_interpretation_admissions(workspace_id) VALUES(p_workspace);
+ OR (SELECT count(*) FROM public.rl_interpretation_admissions WHERE active_until>clock_timestamp())>=2
+ OR EXISTS(SELECT 1 FROM public.rl_interpretation_admissions WHERE workspace_id=p_workspace AND active_until>clock_timestamp()) THEN RETURN jsonb_build_object('kind','limited'); END IF;
+ v_until := clock_timestamp()+interval '60 seconds';
+ INSERT INTO public.rl_interpretation_admissions(id,workspace_id,active_until) VALUES(v_admission,p_workspace,v_until);
+ INSERT INTO public.rl_interpretations(workspace_id,job_id,request_id,admission_id,scope_key,model,report_digest,input_digest,input_json,citations_json,lease_expires_at)
+ VALUES(p_workspace,p_job,p_request,v_admission,p_scope,p_model,p_report_digest,p_input_digest,p_input,p_citations,v_until) RETURNING * INTO v_row;
  RETURN jsonb_build_object('kind','admitted','row',to_jsonb(v_row));
 END $$;
 --> statement-breakpoint
@@ -88,6 +91,8 @@ BEGIN
  ELSE
   IF p_error IS NULL OR p_error NOT IN ('configuration_unavailable','provider_timeout','provider_unavailable','provider_refused','provider_incomplete','invalid_output','expired','internal_failure') THEN RETURN false; END IF;
  END IF;
+ -- The provider has returned; clear only this fenced request's independent active lease.
+ UPDATE public.rl_interpretation_admissions SET active_until=clock_timestamp() WHERE id=v_row.admission_id AND workspace_id=p_workspace;
  UPDATE public.rl_interpretations SET state=CASE WHEN p_sidecar IS NULL THEN 'failed' ELSE 'available' END,sidecar_json=p_sidecar,error_code=p_error,completed_at=clock_timestamp() WHERE id=p_id;
  RETURN true;
 END $$;
@@ -97,8 +102,8 @@ REVOKE ALL ON FUNCTION public.rl_reserve_interpretation(uuid,uuid,uuid,text,text
 --> statement-breakpoint
 CREATE FUNCTION public.rl_guard_interpretation_inputs() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
 BEGIN
- IF ROW(NEW.workspace_id,NEW.job_id,NEW.request_id,NEW.scope_key,NEW.model,NEW.report_digest,NEW.input_digest,NEW.input_json,NEW.citations_json,NEW.created_at)
- IS DISTINCT FROM ROW(OLD.workspace_id,OLD.job_id,OLD.request_id,OLD.scope_key,OLD.model,OLD.report_digest,OLD.input_digest,OLD.input_json,OLD.citations_json,OLD.created_at)
+ IF ROW(NEW.workspace_id,NEW.job_id,NEW.request_id,NEW.admission_id,NEW.scope_key,NEW.model,NEW.report_digest,NEW.input_digest,NEW.input_json,NEW.citations_json,NEW.created_at)
+ IS DISTINCT FROM ROW(OLD.workspace_id,OLD.job_id,OLD.request_id,OLD.admission_id,OLD.scope_key,OLD.model,OLD.report_digest,OLD.input_digest,OLD.input_json,OLD.citations_json,OLD.created_at)
  OR (OLD.state<>'generating' AND NEW IS DISTINCT FROM OLD) THEN RAISE EXCEPTION 'immutable_interpretation_input' USING ERRCODE='55000'; END IF;
  RETURN NEW;
 END $$;
