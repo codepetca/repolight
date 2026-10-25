@@ -1,6 +1,7 @@
 # Default deny: only explicit build inputs can enter the context.
 **
 !Dockerfile
+!Dockerfile.vercel-worker
 !.dockerignore
 !package.json
 !package-lock.json

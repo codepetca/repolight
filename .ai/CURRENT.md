@@ -1,5 +1,15 @@
 # Checkpoint — 2026-10-25 (America/Toronto)
 
+Vercel pilot preparation is on `codex/vercel-pilot`. The user selected Vercel and
+a new dedicated Neon database. Project `repolight` and Free resource
+`repolight-db`/Neon `long-boat-34609339` are prepared, connected only in production;
+read-only inspection confirms an empty application schema. No hosted migration or
+deployment has occurred. [VERCEL.md](../docs/VERCEL.md) records activation inputs.
+Local authenticated pilot evidence is archived under
+`~/.codex/verification-archives/repolight-local-pilot-2026-10-25/`; its repeat-import
+fix is reviewed but remains local in Pika at `d0970d700`. Shared/prod293 and AI stay
+OFF. The earlier implementation checkpoints below remain historical evidence.
+
 The RepoLight public-repository workflow is implemented, locally verified and published. Contributor-aware reports, the durable authenticated service, Pika report/feedback review and separately optional AI interpretation are delivered. The single milestone, review and evidence ledger is [REVIVAL-PLAN.md](../docs/REVIVAL-PLAN.md); dated earlier checkpoints are history.
 
 RepoLight feature [PR#8](https://github.com/codepetca/repolight/pull/8) merged at `f21f6a70364cc1a9b21a9156a8a734bee9961da7`. This handoff changes documentation only; application source remains identical to that merge. The canonical hub is `/Users/stew/Repos/repolight` on main.

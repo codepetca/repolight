@@ -4,6 +4,10 @@ The authenticated `/workspace/reports` screen and `/api/v2/analyses` use the sam
 
 ## Runtime and storage
 
+The Vercel pilot configuration and exact prepared resource/migration boundary are
+documented in [VERCEL.md](VERCEL.md). Hosted activation remains separate from a
+successful local build.
+
 Use Node 22.23.4, `npm ci`, `npm run build` and `npm run build:worker`. Run the web application and a separate `npm run service:worker -- --poll` process. `--once` processes at most one eligible job. An idle poll waits five seconds; SIGTERM/SIGINT abort collection and fenced leases permit recovery. Worker output is a generic outcome, never repository content or credentials.
 
 The web process needs `DATABASE_URL`, a randomly generated `SESSION_SECRET` with at least 32 non-padding characters, and production `APP_ORIGIN` set to the exact external origin. Terminate HTTPS at the hosting platform. The worker needs `DATABASE_URL`; `GITHUB_TOKEN` is optional for public API rate limits. Never use the legacy shared v1 service user/key as a v2 customer identity. Builds require no database or session credentials.
