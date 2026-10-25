@@ -34,6 +34,7 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
   const [reply,setReply] = useState<InterpretationResponse | null>(null)
   const [error,setError] = useState('')
   const [busy,setBusy] = useState(false)
+  const [pendingRecovery,setPendingRecovery] = useState(false)
   const [forbidden,setForbidden] = useState(false)
   const live = useRef(true)
   const controllers = useRef(new Set<AbortController>())
@@ -64,6 +65,7 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
       const notAdmitted = method === 'POST' && next.requestId === null && next.interpretation === null && ((next.state === 'disabled' && !next.enabled && next.error === null) || (next.state === 'failed' && next.enabled && next.error === 'configuration_unavailable'))
       if (method === 'POST' && !notAdmitted && (!submittedIntent || next.requestId !== submittedIntent)) throw new Error('The response does not match the requested interpretation. Retry the same request or check progress. Your report and feedback are unchanged.')
       if (method === 'GET' && intent.current && next.requestId !== intent.current) throw new Error('This progress response does not confirm the current request. Retry the same interpretation request or check progress later. Your report and feedback are unchanged.')
+      setPendingRecovery(false)
       setReply(next);setError(notAdmitted && next.state === 'disabled' ? 'AI interpretation is paused. Your report and feedback are unchanged.' : '')
       if (notAdmitted || ((next.state === 'failed' || next.state === 'available') && next.requestId === intent.current)) intent.current = null
       return next
@@ -74,12 +76,12 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
   }
   function schedule(next: InterpretationResponse | null, version: number) {
     if (!next || next.state !== 'pending' || !live.current) return
-    if (++polls.current > 6) {setError('AI interpretation is still pending. Check progress later.');return}
+    if (++polls.current > 6) {setPendingRecovery(intent.current !== null);setError('AI interpretation is still pending. Check progress later.');return}
     timer.current = setTimeout(() => {void read(version)},Math.min(15000,1500 * 2 ** (polls.current - 1)))
   }
   async function read(version: number) {
     try {schedule(await request('GET',version),version)}
-    catch (caught) {if (live.current && generation.current === version) setError(caught instanceof Error ? caught.message : 'AI interpretation is unavailable. Your report and feedback are unchanged.')}
+    catch (caught) {if (live.current && generation.current === version) {setPendingRecovery(intent.current !== null);setError(caught instanceof Error ? caught.message : 'AI interpretation is unavailable. Your report and feedback are unchanged.')}}
   }
   useEffect(() => {
     live.current = true
@@ -96,12 +98,12 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
     return version
   }
   async function generate() {
-    if (busy || !reply?.enabled || forbidden || reply.state === 'pending') return
+    if (busy || !reply?.enabled || forbidden || (reply.state === 'pending' && !pendingRecovery)) return
     const version = nextGeneration()
     intent.current ||= crypto.randomUUID()
-    setBusy(true);setError('');polls.current = 0
+    setBusy(true);setPendingRecovery(false);setError('');polls.current = 0
     try {schedule(await request('POST',version),version)}
-    catch (caught) {if (live.current && generation.current === version) setError(caught instanceof Error ? caught.message : 'AI interpretation is unavailable. Your report and feedback are unchanged.')}
+    catch (caught) {if (live.current && generation.current === version) {setPendingRecovery(intent.current !== null);setError(caught instanceof Error ? caught.message : 'AI interpretation is unavailable. Your report and feedback are unchanged.')}}
     finally {if (live.current && generation.current === version) setBusy(false)}
   }
   if ((!reply || (!reply.enabled && !reply.interpretation && reply.state !== 'pending')) && !error) return null
@@ -109,7 +111,7 @@ function InterpretationSession({analysisId,reportDigest,bundle,scopeKey}: Props)
   return <details className={`${styles.panel} ${styles.advanced}`}>
     <summary>AI interpretation · optional teacher review</summary>
     <p>Read-only observations for this report view. Review the cited evidence before using them. AI interpretation does not change measured facts or feedback drafts.</p>
-    {reply?.enabled && !forbidden && <><p>Sends selected measured facts to OpenAI. Source code and private teacher edits are not sent.</p><button className="button secondary" type="button" disabled={busy || reply.state === 'pending'} onClick={generate}>{busy ? 'Requesting interpretation…' : reply.state === 'failed' ? 'Retry AI interpretation' : intent.current ? 'Retry interpretation request' : sidecar ? 'Generate new interpretation' : 'Generate AI interpretation'}</button></>}
+    {reply?.enabled && !forbidden && <><p>Sends selected measured facts to OpenAI. Source code and private teacher edits are not sent.</p><button className="button secondary" type="button" disabled={busy || (reply.state === 'pending' && !pendingRecovery)} onClick={generate}>{busy ? 'Requesting interpretation…' : reply.state === 'failed' ? 'Retry AI interpretation' : intent.current ? 'Retry interpretation request' : sidecar ? 'Generate new interpretation' : 'Generate AI interpretation'}</button></>}
     {reply?.state === 'pending' && <p role="status">AI interpretation is pending.</p>}
     {reply?.state === 'failed' && <p role="status">AI interpretation could not be generated ({reply.error?.replaceAll('_',' ') || 'unavailable'}). Your report and feedback are unchanged.</p>}
     {error && <p role="status">{error}</p>}

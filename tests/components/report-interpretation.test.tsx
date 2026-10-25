@@ -218,6 +218,33 @@ describe('ReportInterpretation',()=>{
     await waitFor(()=>expect(ids).toHaveLength(2))
     expect(ids[0]).toBe(ids[1])
   })
+  it.each(['available','pending','network_error'] as const)('allows same-UUID replay after pending progress returns another %s request',async otherState=>{
+    const ids:string[]=[]
+    const otherId='10000000-0000-4000-8000-000000000099'
+    vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
+      if(options.method === 'POST') {
+        ids.push(JSON.parse(options.body as string).requestId)
+        return response(ids.length === 1 ? reply({state:'pending',requestId:ids[0]}) : {...available(),requestId:ids.at(-1)!})
+      }
+      if(!ids.length) return response(reply())
+      if(otherState === 'network_error') throw new Error('Progress could not be read.')
+      return response(otherState === 'available' ? {...available(),requestId:otherId} : reply({state:'pending',requestId:otherId}))
+    }))
+    render(panel())
+    fireEvent.click(await screen.findByRole('button',{name:'Generate AI interpretation',hidden:true}))
+    await screen.findByText('AI interpretation is pending.')
+    expect((screen.getByRole('button',{name:'Retry interpretation request',hidden:true}) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button',{name:'Check interpretation progress',hidden:true}))
+    await screen.findByText(otherState === 'network_error' ? 'Progress could not be read.' : /does not confirm the current request/)
+    const replay=screen.getByRole('button',{name:'Retry interpretation request',hidden:true}) as HTMLButtonElement
+    expect(replay.disabled).toBe(false)
+    fireEvent.click(replay)
+    await screen.findByRole('button',{name:'Generate new interpretation',hidden:true})
+    expect(ids).toHaveLength(2);expect(ids[0]).toBe(ids[1])
+    fireEvent.click(screen.getByRole('button',{name:'Generate new interpretation',hidden:true}))
+    await waitFor(()=>expect(ids).toHaveLength(3))
+    expect(ids[2]).not.toBe(ids[1])
+  })
   it('rejects a POST reply for another request and retains its exact retry intent',async()=>{
     const ids:string[]=[]
     vi.stubGlobal('fetch',vi.fn(async(_path:string,options:RequestInit)=>{
