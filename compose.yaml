@@ -28,6 +28,9 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:?Set the intended Neon database URL}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      REPOLIGHT_GITHUB_APP_ID: ${REPOLIGHT_GITHUB_APP_ID:-}
+      REPOLIGHT_GITHUB_APP_INSTALLATION_ID: ${REPOLIGHT_GITHUB_APP_INSTALLATION_ID:-}
+      REPOLIGHT_GITHUB_APP_PRIVATE_KEY: ${REPOLIGHT_GITHUB_APP_PRIVATE_KEY:-}
     security_opt:
       - no-new-privileges:true
     cap_drop:

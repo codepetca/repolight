@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { ZodError } from 'zod'
-import { GitHubClient, GitHubCollectionError, getGitHubToken, type PublicCollectionOptions } from '@/lib/engine/github'
+import { GitHubClient, GitHubCollectionError, type PublicCollectionOptions } from '@/lib/engine/github'
+import { publicGitHubToken } from './public-github-auth'
 import { makeRepositoryTarget } from '@/lib/engine/repo'
 import { publicRepositoryRequestSchema } from '@/lib/report/bundle-contract'
 import { buildPublicRepositoryBundle } from '@/lib/report/bundle-build'
@@ -67,7 +68,7 @@ export async function runWorkerOnce(store: ServiceStore, options: WorkerOptions 
         if (!await store.pinSnapshot(lease, snapshot)) { leaseLost = true; controller.abort(); throw new WorkerFailure('internal_failure', false) }
       },
     }
-    const client = options.client ?? new GitHubClient({ token: getGitHubToken() })
+    const client = options.client ?? new GitHubClient({ token: await Promise.race([publicGitHubToken(controller.signal), aborted]) })
     const evidence = await Promise.race([client.collectPublicReportEvidence(target, collectionOptions), aborted])
     if (controller.signal.aborted) throw new WorkerFailure('upstream_timeout', true)
     const bundle = buildPublicRepositoryBundle({ bundleRef: job.id, settings, evidence })
