@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runWorkerOnce } from '@/lib/service/worker'
 import { digestJson } from '@/lib/service/http'
@@ -19,7 +20,7 @@ beforeEach(() => {
   job = { id: '33333333-3333-4333-8333-333333333333', workspaceId: '22222222-2222-4222-8222-222222222222', createdByKeyId: null, idempotencyKey: 'one', request: { repositoryUrl: fixture.repositoryUrl, period: fixture.period, scheduledProjectDates: fixture.scheduledProjectDates, exclusions: fixture.exclusions, baselineReviewed: true }, requestFingerprint: 'a'.repeat(64), clientBinding: null, status: 'running', attemptCount: 1, maxAttempts: 3, nextAttemptAt: null, leaseToken: '44444444-4444-4444-8444-444444444444', leaseGeneration: 2, leaseExpiresAt: new Date(Date.now() + 90000).toISOString(), snapshot: null, reportRef: null, errorCode: null, errorRetryable: false, createdAt: new Date().toISOString(), completedAt: null, deadlineAt: new Date(Date.now() + 60000).toISOString() }
   store = { recoverExpiredJobs: vi.fn().mockResolvedValue(0), claimAnalysis: vi.fn().mockResolvedValue(job), renewLease: vi.fn().mockResolvedValue(true), pinSnapshot: vi.fn().mockResolvedValue(true), completeAnalysis: vi.fn().mockResolvedValue(true), failOrRetryAnalysis: vi.fn().mockResolvedValue(true) } as unknown as ServiceStore
 })
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals() })
 describe('fenced persistent worker lifecycle', () => {
   it('pins before history, persists a stable bundle ref/digest and fences every write', async () => {
     const provider = client(async options => {
@@ -85,6 +86,21 @@ describe('fenced persistent worker lifecycle', () => {
     expect(await runWorkerOnce(store, { client: client(async options => { await options.onSnapshot?.(snapshot); return oversized }) })).toBe('failed')
     expect(store.completeAnalysis).not.toHaveBeenCalled()
     expect(store.failOrRetryAnalysis).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ code: 'result_too_large', retryable: false }))
+  })
+  it('uses an installation token for the actual public collector', async () => {
+    const keys = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } })
+    vi.stubEnv('REPOLIGHT_GITHUB_APP_ID', '123')
+    vi.stubEnv('REPOLIGHT_GITHUB_APP_INSTALLATION_ID', '456')
+    vi.stubEnv('REPOLIGHT_GITHUB_APP_PRIVATE_KEY', keys.privateKey)
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).endsWith('/access_tokens')) return Response.json({ token: 'test-installation-token', expires_at: new Date(Date.now() + 3_600_000).toISOString() })
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-installation-token')
+      return new Response('', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchImpl)
+    expect(await runWorkerOnce(store)).toBe('failed')
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(store.failOrRetryAnalysis).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ code: 'repository_unavailable' }))
   })
   it('does no provider work when the queue is empty', async () => {
     vi.mocked(store.claimAnalysis).mockResolvedValue(null)
