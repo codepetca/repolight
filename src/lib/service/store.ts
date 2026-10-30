@@ -9,7 +9,7 @@ type Row = Record<string, unknown>
 const timestamp = (value: unknown): string => new Date(value instanceof Date ? value.getTime() : String(value)).toISOString()
 const nullableTime = (value: unknown): string | null => value == null ? null : timestamp(value)
 function workspace(row: Row): WorkspaceRecord {
-  return { id: String(row.id), ownerUserId: String(row.owner_user_id), customerRef: String(row.customer_ref), createdAt: timestamp(row.created_at) }
+  return { id: String(row.id), ownerUserId: row.owner_user_id == null ? null : String(row.owner_user_id), customerRef: String(row.customer_ref), createdAt: timestamp(row.created_at) }
 }
 function keyMetadata(row: Row): ApiKeyMetadata {
   return { id: String(row.id), workspaceId: String(row.workspace_id), label: String(row.label), scopes: row.scopes as ApiKeyMetadata['scopes'], installationRef: row.installation_ref == null ? null : String(row.installation_ref), expiresAt: nullableTime(row.expires_at), revokedAt: nullableTime(row.revoked_at), createdAt: timestamp(row.created_at) }
@@ -43,6 +43,11 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
   const scalar = async (sql: string, args: unknown[]): Promise<unknown> => (await db().query(sql, args))[0]?.value
   const leaseArgs = (lease: { jobId: string; leaseToken: string; leaseGeneration: number }) => [analysisIdSchema.parse(lease.jobId), analysisIdSchema.parse(lease.leaseToken), z.number().int().positive().parse(lease.leaseGeneration)]
   return {
+    async provisionManaged(input) {
+      const value = await scalar('SELECT public.rl_provision_managed($1,$2,$3,$4,$5) AS value', [serviceRefSchema.parse(input.installationRef), serviceRefSchema.parse(input.tenantRef), analysisIdSchema.parse(input.operationRef), analysisIdSchema.parse(input.keyId), digestSchema.parse(input.secretHash)]) as Row
+      if (value.kind === 'created' || value.kind === 'replayed') return { kind: value.kind, workspaceRef: serviceRefSchema.parse(value.workspaceRef) }
+      return { kind: 'conflict' }
+    },
     async eraseSubject(input) {
       const request = erasureRequestSchema.parse(input.request)
       const value = await scalar('SELECT public.rl_erase_subject($1,$2,$3,$4,$5) AS value', [analysisIdSchema.parse(input.workspaceId), input.createdByKeyId ? analysisIdSchema.parse(input.createdByKeyId) : null, request.operationRef, request.installationRef, request.subjectRef]) as Row
@@ -71,7 +76,7 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
     async findApiKey(keyId) {
       const rows = await db().query(`SELECT k.*,w.customer_ref,w.owner_user_id FROM public.rl_api_keys k JOIN public.rl_workspaces w ON w.id=k.workspace_id WHERE k.id=$1 AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at>clock_timestamp())`, [analysisIdSchema.parse(keyId)])
       if (!rows[0]) return null
-      return { ...keyMetadata(rows[0]), secretHash: String(rows[0].secret_hash), customerRef: String(rows[0].customer_ref), ownerUserId: String(rows[0].owner_user_id) } satisfies ApiKeyRecord
+      return { ...keyMetadata(rows[0]), secretHash: String(rows[0].secret_hash), customerRef: String(rows[0].customer_ref), ownerUserId: rows[0].owner_user_id == null ? null : String(rows[0].owner_user_id) } satisfies ApiKeyRecord
     },
     async enqueueAnalysis(input) {
       const limits = { ...DEFAULT_SERVICE_LIMITS, ...input.limits }
