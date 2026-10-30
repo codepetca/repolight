@@ -29,6 +29,21 @@ describe('managed control endpoint', () => {
     provisionManaged.mockResolvedValueOnce({ kind: 'conflict' })
     expect((await api(req(body))).status).toBe(409)
   })
+  it('validates rotation with the same control authentication and an expected current key', async () => {
+    process.env.REPOLIGHT_CONTROL_SECRET = control; process.env.REPOLIGHT_CONTROL_INSTALLATION_REF = 'pika-installation'
+    const rotateManaged = vi.fn().mockResolvedValue({ kind: 'created', workspaceRef: 'customer-opaque' })
+    const api = createManagedProvisionApi({ rotateManaged } as unknown as ServiceStore, 'rotate')
+    const body = { ...input(), expectedKeyId: randomUUID() }
+    expect((await api(req(body, randomBytes(32).toString('base64url')))).status).toBe(401)
+    expect((await api(req(input()))).status).toBe(400)
+    expect((await api(req({ ...body, expectedKeyId: body.expectedKeyId.toUpperCase() }))).status).toBe(400)
+    expect((await api(req(body))).status).toBe(201)
+    expect(rotateManaged).toHaveBeenCalledWith({ installationRef: 'pika-installation', tenantRef: body.tenantRef, operationRef: body.operationRef, expectedKeyId: body.expectedKeyId, keyId: body.keyId, secretHash: body.secretHash })
+    rotateManaged.mockResolvedValueOnce({ kind: 'replayed', workspaceRef: 'customer-opaque' })
+    expect((await api(req(body))).status).toBe(200)
+    rotateManaged.mockResolvedValueOnce({ kind: 'conflict' })
+    expect((await api(req(body))).status).toBe(409)
+  })
   it('authenticates an ownerless scoped key and rejects wrong secrets and scopes', async () => {
     const id = randomUUID(), secret = randomBytes(32).toString('base64url')
     const key = { id, workspaceId: randomUUID(), ownerUserId: null, customerRef: 'customer-opaque', label: 'managed', scopes: ['analyses:read'], installationRef: 'pika', expiresAt: null, revokedAt: null, createdAt: new Date().toISOString(), secretHash: hashApiSecret(secret) }

@@ -1,5 +1,5 @@
 {
-  "id": "1d180288-2058-4e0f-9194-742ed7910397",
+  "id": "81916a8c-eb00-4b1f-a466-8365af761341",
   "prevId": "65750e7a-43d5-4118-af4e-d22757f0d188",
   "version": "7",
   "dialect": "postgresql",
@@ -1946,6 +1946,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "current_key_id": {
+          "name": "current_key_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "secret_hash": {
           "name": "secret_hash",
           "type": "text",
@@ -1981,6 +1987,21 @@
           "columnsFrom": [
             "workspace_id",
             "key_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rl_managed_current_key_fk": {
+          "name": "rl_managed_current_key_fk",
+          "tableFrom": "rl_managed_provisions",
+          "tableTo": "rl_api_keys",
+          "columnsFrom": [
+            "workspace_id",
+            "current_key_id"
           ],
           "columnsTo": [
             "workspace_id",
@@ -2036,6 +2057,113 @@
         "rl_managed_provisions_secret_hash_check": {
           "name": "rl_managed_provisions_secret_hash_check",
           "value": "\"rl_managed_provisions\".\"secret_hash\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.rl_managed_rotations": {
+      "name": "rl_managed_rotations",
+      "schema": "",
+      "columns": {
+        "installation_ref": {
+          "name": "installation_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_ref": {
+          "name": "operation_ref",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_ref": {
+          "name": "tenant_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected_key_id": {
+          "name": "expected_key_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key_id": {
+          "name": "key_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "secret_hash": {
+          "name": "secret_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "rl_managed_rotations_installation_ref_tenant_ref_rl_managed_provisions_installation_ref_tenant_ref_fk": {
+          "name": "rl_managed_rotations_installation_ref_tenant_ref_rl_managed_provisions_installation_ref_tenant_ref_fk",
+          "tableFrom": "rl_managed_rotations",
+          "tableTo": "rl_managed_provisions",
+          "columnsFrom": [
+            "installation_ref",
+            "tenant_ref"
+          ],
+          "columnsTo": [
+            "installation_ref",
+            "tenant_ref"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "rl_managed_rotations_workspace_id_key_id_rl_api_keys_workspace_id_id_fk": {
+          "name": "rl_managed_rotations_workspace_id_key_id_rl_api_keys_workspace_id_id_fk",
+          "tableFrom": "rl_managed_rotations",
+          "tableTo": "rl_api_keys",
+          "columnsFrom": [
+            "workspace_id",
+            "key_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "rl_managed_rotations_installation_ref_operation_ref_pk": {
+          "name": "rl_managed_rotations_installation_ref_operation_ref_pk",
+          "columns": [
+            "installation_ref",
+            "operation_ref"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "rl_managed_rotations_key_id_unique": {
+          "name": "rl_managed_rotations_key_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "rl_managed_rotations_secret_hash_check": {
+          "name": "rl_managed_rotations_secret_hash_check",
+          "value": "\"rl_managed_rotations\".\"secret_hash\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": true

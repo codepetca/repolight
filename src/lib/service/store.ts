@@ -43,6 +43,11 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
   const scalar = async (sql: string, args: unknown[]): Promise<unknown> => (await db().query(sql, args))[0]?.value
   const leaseArgs = (lease: { jobId: string; leaseToken: string; leaseGeneration: number }) => [analysisIdSchema.parse(lease.jobId), analysisIdSchema.parse(lease.leaseToken), z.number().int().positive().parse(lease.leaseGeneration)]
   return {
+    async rotateManaged(input) {
+      const value = await scalar('SELECT public.rl_rotate_managed($1,$2,$3,$4,$5,$6) AS value', [serviceRefSchema.parse(input.installationRef), serviceRefSchema.parse(input.tenantRef), analysisIdSchema.parse(input.operationRef), analysisIdSchema.parse(input.expectedKeyId), analysisIdSchema.parse(input.keyId), digestSchema.parse(input.secretHash)]) as Row
+      if (value.kind === 'created' || value.kind === 'replayed') return { kind: value.kind, workspaceRef: serviceRefSchema.parse(value.workspaceRef) }
+      return { kind: 'conflict' }
+    },
     async provisionManaged(input) {
       const value = await scalar('SELECT public.rl_provision_managed($1,$2,$3,$4,$5) AS value', [serviceRefSchema.parse(input.installationRef), serviceRefSchema.parse(input.tenantRef), analysisIdSchema.parse(input.operationRef), analysisIdSchema.parse(input.keyId), digestSchema.parse(input.secretHash)]) as Row
       if (value.kind === 'created' || value.kind === 'replayed') return { kind: value.kind, workspaceRef: serviceRefSchema.parse(value.workspaceRef) }
