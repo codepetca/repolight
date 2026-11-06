@@ -43,6 +43,13 @@
       "when": 1792893070712,
       "tag": "0005_optional_interpretation",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793329000000,
+      "tag": "0006_managed_provisioning",
+      "breakpoints": true
     }
   ]
 }

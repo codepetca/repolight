@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16@sha256:eb4759788a2182f08257135e61a34f2cfc3c2914079f3465d64ee62350f4d081
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: repolight_managed_test
+        ports:
+          - 55489:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d repolight_managed_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Managed workspace database contracts
+        run: npm test -- tests/service/managed.postgres.test.ts
+        env:
+          PGUSER: postgres
+          REPOLIGHT_MANAGED_TEST_DATABASE_URL: postgresql://127.0.0.1:55489/repolight_managed_test
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build

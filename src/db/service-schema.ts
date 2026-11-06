@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, check, foreignKey, index, integer, jsonb, primaryKey, pgTable, text, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { users } from './schema'
 import type { PublicRepositoryBundle, PublicRepositoryRequest } from '@/lib/report/bundle-contract'
 import type { ClientBinding } from '@/lib/service/contract'
@@ -8,7 +8,7 @@ import type { ApiKeyScope, PinnedSnapshot } from '@/lib/service/store-types'
 const time = (name: string) => timestamp(name, { withTimezone: true, mode: 'string' })
 export const serviceWorkspaces = pgTable('rl_workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
-  ownerUserId: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
   customerRef: text('customer_ref').notNull(),
   admissionDay: text('admission_day').notNull().default(''),
   admissionCount: integer('admission_count').notNull().default(0),
@@ -23,6 +23,31 @@ export const serviceApiKeys = pgTable('rl_api_keys', {
   check('rl_key_hash', sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`), check('rl_key_label', sql`char_length(${table.label}) between 1 and 100`),
   check('rl_key_scopes', sql`jsonb_typeof(${table.scopes}) = 'array' and jsonb_array_length(${table.scopes}) between 1 and 3 and ${table.scopes} <@ '["analyses:create","analyses:read","analyses:erase"]'::jsonb`),
   check('rl_key_installation', sql`${table.installationRef} is null or ${table.installationRef} ~ '^[A-Za-z0-9._~-]{1,128}$'`)]).enableRLS()
+
+/** Durable idempotency and tenant binding; retained until an explicit cleanup procedure. */
+export const serviceManagedProvisions = pgTable('rl_managed_provisions', {
+  installationRef: text('installation_ref').notNull(), tenantRef: text('tenant_ref').notNull(),
+  operationRef: uuid('operation_ref').notNull(), keyId: uuid('key_id').notNull(), currentKeyId: uuid('current_key_id').notNull(), secretHash: text('secret_hash').notNull(),
+  workspaceId: uuid('workspace_id').notNull().references(() => serviceWorkspaces.id, { onDelete: 'restrict' }),
+}, table => [
+  primaryKey({ columns: [table.installationRef, table.tenantRef] }),
+  unique().on(table.installationRef, table.operationRef), unique().on(table.keyId), unique().on(table.workspaceId),
+  foreignKey({ columns: [table.workspaceId, table.keyId], foreignColumns: [serviceApiKeys.workspaceId, serviceApiKeys.id] }).onDelete('restrict'),
+  foreignKey({ name: 'rl_managed_current_key_fk', columns: [table.workspaceId, table.currentKeyId], foreignColumns: [serviceApiKeys.workspaceId, serviceApiKeys.id] }).onDelete('restrict'),
+  check('rl_managed_provisions_installation_ref_check', sql`${table.installationRef} ~ '^[A-Za-z0-9._~-]{1,128}$'`),
+  check('rl_managed_provisions_tenant_ref_check', sql`${table.tenantRef} ~ '^[A-Za-z0-9._~-]{1,128}$'`),
+  check('rl_managed_provisions_secret_hash_check', sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`),
+]).enableRLS()
+
+export const serviceManagedRotations = pgTable('rl_managed_rotations', {
+  installationRef: text('installation_ref').notNull(), operationRef: uuid('operation_ref').notNull(), tenantRef: text('tenant_ref').notNull(),
+  expectedKeyId: uuid('expected_key_id').notNull(), keyId: uuid('key_id').notNull(), secretHash: text('secret_hash').notNull(), workspaceId: uuid('workspace_id').notNull(),
+}, table => [
+  primaryKey({ columns: [table.installationRef, table.operationRef] }), unique().on(table.keyId),
+  foreignKey({ columns: [table.installationRef, table.tenantRef], foreignColumns: [serviceManagedProvisions.installationRef, serviceManagedProvisions.tenantRef] }).onDelete('restrict'),
+  foreignKey({ columns: [table.workspaceId, table.keyId], foreignColumns: [serviceApiKeys.workspaceId, serviceApiKeys.id] }).onDelete('restrict'),
+  check('rl_managed_rotations_secret_hash_check', sql`${table.secretHash} ~ '^[a-f0-9]{64}$'`),
+]).enableRLS()
 
 export const serviceAnalysisJobs = pgTable('rl_analysis_jobs', {
   id: uuid('id').primaryKey().defaultRandom(), workspaceId: uuid('workspace_id').notNull().references(() => serviceWorkspaces.id, { onDelete: 'cascade' }),

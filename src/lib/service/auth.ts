@@ -29,7 +29,9 @@ export async function authenticateService(request: Request, store: ServiceStore,
     const valid = timingSafeEqual(actual, expected)
     if (!key || !valid || key.revokedAt || (key.expiresAt !== null && (!Number.isFinite(Date.parse(key.expiresAt)) || Date.parse(key.expiresAt) <= Date.now()))) throw new ServiceHttpError('unauthorized', 401)
     if (options.scope && !key.scopes.includes(options.scope)) throw new ServiceHttpError('forbidden', 403)
-    const workspace = await store.getWorkspaceForOwner(key.ownerUserId, key.workspaceId)
+    const workspace = key.ownerUserId === null
+      ? { id: key.workspaceId, ownerUserId: null, customerRef: key.customerRef, createdAt: key.createdAt }
+      : await store.getWorkspaceForOwner(key.ownerUserId, key.workspaceId)
     if (!workspace || workspace.customerRef !== key.customerRef) throw new ServiceHttpError('unauthorized', 401)
     return { kind: 'key', workspace, keyId: key.id, scopes: key.scopes, installationRef: key.installationRef }
   }
