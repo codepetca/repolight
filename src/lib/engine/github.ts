@@ -4,6 +4,7 @@ import type { AnalysisEvent, AnalysisWindow, CommitFile, RepositoryTarget } from
 
 const GITHUB_API_BASE = 'https://api.github.com'
 const MAX_COMMITS = 250
+const MAX_PUBLIC_HISTORY = 500
 const MAX_PAGES = 5
 const MAX_PULLS = 100
 
@@ -140,11 +141,11 @@ export class GitHubClient {
     const seen = new Set<string>()
     let scanned = 0
     let omittedMerges = 0
-    for (let page = 1; page <= 3; page += 1) {
+    for (let page = 1; page <= MAX_PUBLIC_HISTORY / 100; page += 1) {
       const result: { data: GitHubCommitSummary[]; headers: Headers } = await requestPage<GitHubCommitSummary[]>(`${base}/commits?sha=${sha}&per_page=100&page=${page}`)
       if (!Array.isArray(result.data)) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub returned an invalid commit history response.')
       if (page === 1 && result.data[0]?.sha !== sha) throw new GitHubCollectionError('invalid_evidence', false, 'GitHub commit history does not match the pinned snapshot SHA.')
-      const remaining = MAX_COMMITS - scanned
+      const remaining = MAX_PUBLIC_HISTORY - scanned
       const selected = result.data.slice(0, remaining)
       for (const commit of selected) {
         scanned += 1
@@ -167,14 +168,15 @@ export class GitHubClient {
         summaries.push(commit)
       }
       const hasNext = hasNextPage(result.headers)
-      if (result.data.length > remaining || (scanned === MAX_COMMITS && (hasNext || result.data.length === 100))) {
+      if (result.data.length > remaining || (scanned === MAX_PUBLIC_HISTORY && (hasNext || result.data.length === 100))) {
         history = 'partial'
-        notes.add('History collection reached the 250 scanned-commit limit (including merges).')
+        notes.add(`History collection reached the ${MAX_PUBLIC_HISTORY} scanned-commit limit (including merges); further history may be missing.`)
         break
       }
-      if (page === 3 && hasNext) {
+      if (page === MAX_PUBLIC_HISTORY / 100 && (hasNext || result.data.length === 100)) {
         history = 'partial'
-        notes.add('History collection reached the three-page scan limit.')
+        notes.add('History collection reached the five-page scan limit; further history may be missing.')
+        break
       }
       if (!hasNext && result.data.length < 100) break
     }
@@ -226,7 +228,7 @@ export class GitHubClient {
             }
           }
         } catch (error) {
-          if (options.signal?.aborted || (options.failOnTransientError && error instanceof GitHubCollectionError && (error.retryable || error.code === 'collection_limit'))) throw error
+          if (options.signal?.aborted || (options.failOnTransientError && error instanceof GitHubCollectionError && error.retryable)) throw error
           usableFiles = false
           complete = false
           notes.add(`Commit ${summary.sha}: ${error instanceof Error ? error.message : 'Commit details unavailable.'}`)

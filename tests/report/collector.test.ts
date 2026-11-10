@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GitHubClient } from '@/lib/engine/github'
 import { analyzePublicRepository } from '@/lib/report/analyze'
+import { buildPublicRepositoryBundle } from '@/lib/report/bundle-build'
 import type { RepositoryTarget } from '@/lib/engine/types'
 
 const target: RepositoryTarget = { key: 'acme/app#main', provider: 'github', owner: 'acme', name: 'app', branch: 'main', repoUrl: 'https://github.com/acme/app' }
@@ -98,7 +99,27 @@ describe('public report evidence collector', () => {
     expect(report.coverage.files).toBe('complete')
   })
 
-  it('caps total scanned commits including merges at 250 and reports partial history', async () => {
+  it('collects more than 250 commits and preserves contributor identities across pages', async () => {
+    const { client, fetchImpl } = fixture((url) => {
+      if (url.pathname.endsWith('/commits')) {
+        const page = Number(url.searchParams.get('page'))
+        const count = page === 5 ? 1 : 100
+        return json(Array.from({ length: count }, (_, n) => commit((page - 1) * 100 + n + 1, { author: { login: page === 5 ? 'bob' : 'alice', type: 'User' } })), page < 5)
+      }
+    })
+    const report = await client.collectPublicReportEvidence(target)
+    expect(report.events).toHaveLength(401)
+    expect(report.events[400].githubLogin).toBe('bob')
+    expect(report.accountTypes?.[sha(401)]).toBe('user')
+    const bundle = buildPublicRepositoryBundle({ bundleRef: 'test', evidence: report, settings: { repositoryUrl: target.repoUrl, branch: 'main', baselineReviewed: true, period: { startAt: '2026-10-01T00:00:00Z', endAt: '2026-10-02T00:00:00Z', timezone: 'UTC' }, scheduledProjectDates: ['2026-10-01'], exclusions: { commitShas: [], pathPrefixes: [], botLogins: [] } } })
+    expect(bundle.overview.facts.commits).toHaveLength(401)
+    expect(bundle.contributors.find(item => item.contributor.githubLogin === 'bob')?.analysis.facts.commits).toHaveLength(1)
+    expect(Buffer.byteLength(JSON.stringify(bundle))).toBeLessThan(8_000_000)
+    expect(report.coverage).toMatchObject({ history: 'complete', files: 'complete' })
+    expect(fetchImpl).toHaveBeenCalledTimes(408)
+  })
+
+  it('caps total scanned commits including merges at 500 and reports partial history', async () => {
     const { client, fetchImpl } = fixture((url) => {
       if (url.pathname.endsWith('/commits')) {
         const page = Number(url.searchParams.get('page'))
@@ -108,8 +129,18 @@ describe('public report evidence collector', () => {
     const report = await client.collectPublicReportEvidence(target)
     expect(report.events).toHaveLength(0)
     expect(report.coverage.history).toBe('partial')
-    expect(report.coverage.notes.join(' ')).toContain('250')
-    expect(fetchImpl).toHaveBeenCalledTimes(5)
+    expect(report.coverage.notes.join(' ')).toContain('500')
+    expect(fetchImpl).toHaveBeenCalledTimes(7)
+  })
+
+  it('reports partial history when five short pages still advertise more', async () => {
+    const { client, fetchImpl } = fixture(url => url.pathname.endsWith('/commits')
+      ? json([commit(Number(url.searchParams.get('page')))], true) : undefined)
+    const report = await client.collectPublicReportEvidence(target)
+    expect(report.events).toHaveLength(5)
+    expect(report.coverage.history).toBe('partial')
+    expect(report.coverage.notes.join(' ')).toContain('five-page')
+    expect(fetchImpl).toHaveBeenCalledTimes(12)
   })
 
   it.each(['missing', 'failed', 'wrong-sha'])('retains commits with undefined files when details are %s', async (mode) => {
@@ -229,7 +260,7 @@ describe('public report evidence collector', () => {
         return json({ ...commit(parseInt(url.pathname.split('/').at(-1)!, 16)), files: [file(Number(url.searchParams.get('page')))] }, true)
       }
     })
-    const report = await client.collectPublicReportEvidence(target)
+    const report = await client.collectPublicReportEvidence(target, { failOnTransientError: true })
     expect(fetchImpl).toHaveBeenCalledTimes(600)
     expect(report.events).toHaveLength(250)
     expect(report.coverage.history).toBe('complete')
