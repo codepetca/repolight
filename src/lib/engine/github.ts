@@ -168,20 +168,23 @@ export class GitHubClient {
         summaries.push(commit)
       }
       const hasNext = hasNextPage(result.headers)
-      if (result.data.length > remaining || (scanned === MAX_PUBLIC_HISTORY && (hasNext || result.data.length === 100))) {
+      const uncertainFullPage = result.data.length === 100 && !hasNext && !hasTerminalPaginationMetadata(result.headers)
+      if (result.data.length > remaining || (scanned === MAX_PUBLIC_HISTORY && (hasNext || uncertainFullPage))) {
         history = 'partial'
         notes.add(`History collection reached the ${MAX_PUBLIC_HISTORY} scanned-commit limit (including merges); further history may be missing.`)
         break
       }
-      if (page === MAX_PUBLIC_HISTORY / 100 && (hasNext || result.data.length === 100)) {
+      if (page === MAX_PUBLIC_HISTORY / 100 && (hasNext || uncertainFullPage)) {
         history = 'partial'
         notes.add('History collection reached the five-page scan limit; further history may be missing.')
         break
       }
-      if (!hasNext && result.data.length < 100) break
+      if (!hasNext && !uncertainFullPage) break
     }
     if (omittedMerges) notes.add(`${omittedMerges} merge commit(s) omitted from scanned history by collection policy; merge-resolution-only changes are not assessed; complete coverage refers to this non-merge scope.`)
     const accountTypes: Record<string, 'user' | 'bot' | 'unknown'> = Object.fromEntries(summaries.map(summary => [summary.sha, summary.author?.type === 'Bot' ? 'bot' : summary.author?.type === 'User' ? 'user' : 'unknown']))
+    const detailLimitCounts = new Map<string, number>()
+    const noteDetailLimit = (reason: string) => detailLimitCounts.set(reason, (detailLimitCounts.get(reason) || 0) + 1)
     const events = new Array<AnalysisEvent>(summaries.length)
     let cursor = 0
     const worker = async () => {
@@ -211,14 +214,14 @@ export class GitHubClient {
             }
             if (files.length >= 3000 || page === 30) {
               complete = false
-              notes.add(`Commit ${summary.sha} reached GitHub's 3000-file or 30-page collection limit; file coverage is partial.`)
+              noteDetailLimit("reached GitHub's 3000-file or 30-page collection limit")
               break
             }
             if (!hasNextPage(detail.headers)) {
               // A full page without a next link cannot prove the file list is exhaustive.
               if (detail.data.files.length >= 100) {
                 complete = false
-                notes.add(`Commit ${summary.sha} returned a full file page without pagination metadata; file coverage is uncertain.`)
+                noteDetailLimit('returned a full file page without pagination metadata')
               }
               break
             }
@@ -231,7 +234,7 @@ export class GitHubClient {
           if (options.signal?.aborted || (options.failOnTransientError && error instanceof GitHubCollectionError && error.retryable)) throw error
           usableFiles = false
           complete = false
-          notes.add(`Commit ${summary.sha}: ${error instanceof Error ? error.message : 'Commit details unavailable.'}`)
+          noteDetailLimit(error instanceof Error ? error.message : 'Commit details unavailable.')
         }
         if (!complete) {
           filesCoverage = 'partial'
@@ -253,6 +256,7 @@ export class GitHubClient {
       }
     }
     await Promise.all(Array.from({ length: Math.min(6, summaries.length) }, worker))
+    for (const [reason, count] of detailLimitCounts) notes.add(`${count} commit detail(s): ${reason}`)
     return { target: resolvedTarget, snapshot, events, accountTypes, coverage: { history, files: filesCoverage, notes: [...notes].sort() } }
   }
 
@@ -485,6 +489,12 @@ function isWithinWindow(iso: string, window: AnalysisWindow): boolean {
 
 function hasNextPage(headers: Headers): boolean {
   return /;\s*rel=["']?next["']?(?:\s|,|$)/i.test(headers.get('link') || '')
+}
+
+// GitHub's last page can be full and still advertise only previous/first links.
+// Without recognizable pagination metadata a full page cannot prove exhaustion.
+function hasTerminalPaginationMetadata(headers: Headers): boolean {
+  return /<[^>]+>\s*;\s*rel=["']?(?:prev|first)["']?(?:\s|,|$)/i.test(headers.get('link') || '')
 }
 
 function isFullSha(value: unknown): value is string {

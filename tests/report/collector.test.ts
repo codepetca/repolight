@@ -133,6 +133,20 @@ describe('public report evidence collector', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(7)
   })
 
+  it.each([true, false])('classifies a full terminal 500th entry with pagination metadata %s', async (metadata) => {
+    const { client, fetchImpl } = fixture(url => {
+      if (url.pathname.endsWith('/commits')) {
+        const page = Number(url.searchParams.get('page'))
+        const entries = Array.from({ length: 100 }, (_, n) => commit((page - 1) * 100 + n + 1, { parents: [{ sha: sha(501) }, { sha: sha(502) }] }))
+        if (page < 5) return json(entries, true)
+        return new Response(JSON.stringify(entries), { headers: metadata ? { link: '<https://api.github.com/previous>; rel="prev", <https://api.github.com/first>; rel="first"' } : {} })
+      }
+    })
+    const report = await client.collectPublicReportEvidence(target)
+    expect(report.coverage.history).toBe(metadata ? 'complete' : 'partial')
+    expect(fetchImpl).toHaveBeenCalledTimes(7)
+  })
+
   it('reports partial history when five short pages still advertise more', async () => {
     const { client, fetchImpl } = fixture(url => url.pathname.endsWith('/commits')
       ? json([commit(Number(url.searchParams.get('page')))], true) : undefined)
@@ -267,6 +281,27 @@ describe('public report evidence collector', () => {
     expect(report.coverage.files).toBe('partial')
     expect(report.coverage.notes.join(' ')).toContain('budget reached')
     expect(report.events.some((event) => event.files === undefined)).toBe(true)
+  })
+
+  it('bounds repeated detail-budget notes in a 500-contributor service-sized bundle', async () => {
+    const { client, fetchImpl } = fixture(url => {
+      if (url.pathname.endsWith('/commits')) {
+        const page = Number(url.searchParams.get('page'))
+        const entries = Array.from({ length: 100 }, (_, n) => {
+          const id = (page - 1) * 100 + n + 1
+          return commit(id, { author: { login: `user${id}`, type: 'User' } })
+        })
+        return page < 5 ? json(entries, true) : new Response(JSON.stringify(entries), { headers: { link: '<https://api.github.com/prev>; rel="prev"' } })
+      }
+      if (url.pathname.includes('/commits/')) return json({ ...commit(parseInt(url.pathname.split('/').at(-1)!, 16)), files: [file(Number(url.searchParams.get('page')))] }, true)
+    })
+    const evidence = await client.collectPublicReportEvidence(target, { failOnTransientError: true })
+    const bundle = buildPublicRepositoryBundle({ bundleRef: 'test', evidence, settings: { repositoryUrl: target.repoUrl, branch: 'main', baselineReviewed: true, period: { startAt: '2026-10-01T00:00:00Z', endAt: '2026-10-02T00:00:00Z', timezone: 'UTC' }, scheduledProjectDates: ['2026-10-01'], exclusions: { commitShas: [], pathPrefixes: [], botLogins: [] } } })
+    expect(fetchImpl).toHaveBeenCalledTimes(600)
+    expect(evidence.coverage).toMatchObject({ history: 'complete', files: 'partial' })
+    expect(evidence.coverage.notes.filter(note => note.includes('budget reached'))).toHaveLength(1)
+    expect(bundle.contributors).toHaveLength(500)
+    expect(Buffer.byteLength(JSON.stringify(bundle))).toBeLessThan(8_000_000)
   })
 
   it('stops starting requests after the two-minute operation budget', async () => {
