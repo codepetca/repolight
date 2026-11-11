@@ -44,6 +44,26 @@ describe('workspace-scoped v2 API', () => {
     vi.mocked(store.enqueueAnalysis).mockResolvedValueOnce({ kind: 'conflict' })
     expect((await api.create(req())).status).toBe(409)
   })
+  it('keeps committed admissions accepted when a wake fails and wakes queued replays without job data', async () => {
+    const api = createServiceApi(store, async () => ({ id: userId }))
+    const wake = vi.fn(async () => {
+      expect(store.enqueueAnalysis).toHaveBeenCalled()
+      throw new Error('private provider diagnostics')
+    })
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const accepted = await api.create(req(), wake)
+      expect(accepted.status).toBe(202)
+      expect(await accepted.json()).toMatchObject({ analysisId: jobId, status: 'queued' })
+      vi.mocked(store.enqueueAnalysis).mockResolvedValueOnce({ kind: 'replayed', job })
+      expect((await api.create(req(), wake)).status).toBe(202)
+      vi.mocked(store.enqueueAnalysis).mockResolvedValueOnce({ kind: 'replayed', job: { ...job, status: 'failed' } })
+      expect((await api.create(req(), wake)).status).toBe(202)
+      expect((await api.create(req(body, { origin: 'https://wrong.example' }), wake)).status).toBe(403)
+      expect(wake.mock.calls).toEqual([[], []])
+      expect(log.mock.calls).toEqual(Array.from({ length: 2 }, () => ['Analysis was queued but its immediate worker wake was unavailable.']))
+    } finally { log.mockRestore() }
+  })
   it('does not let request bodies choose a workspace/customer or bypass installation binding', async () => {
     const { headers } = bearer('installation-a')
     const api = createServiceApi(store, async () => null)

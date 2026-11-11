@@ -66,4 +66,6 @@ export interface ServiceStore {
   completeAnalysis(lease: LeaseIdentity, input: { bundle: PublicRepositoryBundle; reportDigest: string }): Promise<boolean>;
   failOrRetryAnalysis(lease: LeaseIdentity, failure: { code: AnalysisErrorCode; retryable: boolean; retryAfterSeconds?: number }): Promise<boolean>;
   recoverExpiredJobs(): Promise<number>;
+  /** Scheduling hint only. Null means no queued jobs or running leases were observed. */
+  nextAnalysisWakeDelaySeconds(): Promise<number | null>;
 }

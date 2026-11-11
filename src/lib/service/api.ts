@@ -25,7 +25,7 @@ export function createServiceApi(store: ServiceStore, readSession: ReadSession) 
       if (result.kind !== 'erased') throw new ServiceHttpError(result.kind === 'conflict' ? 'operation_conflict' : 'unauthorized', result.kind === 'conflict' ? 409 : 401)
       return serviceJson(erasureReceiptSchema.parse(result.receipt))
     }),
-    create: (request: Request) => serviceHandle(async () => {
+    create: (request: Request, wakeWorker?: () => Promise<void>) => serviceHandle(async () => {
       const parsed = createAnalysisRequestSchema.parse(await readServiceJson(request))
       const body = { ...parsed, request: { ...parsed.request, repositoryUrl: makeRepositoryTarget(parsed.request.repositoryUrl, parsed.request.branch)!.repoUrl } }
       const principal = await authenticateService(request, store, readSession, { mutation: true, scope: 'analyses:create', initialize: true })
@@ -37,6 +37,10 @@ export function createServiceApi(store: ServiceStore, readSession: ReadSession) 
       if (result.kind === 'conflict') throw new ServiceHttpError('idempotency_conflict', 409)
       if (result.kind === 'unauthorized') throw new ServiceHttpError('unauthorized', 401)
       if (result.kind === 'limited') throw new ServiceHttpError(result.reason, 429)
+      if (result.job.status === 'queued' && wakeWorker) {
+        try { await wakeWorker() }
+        catch { console.warn('Analysis was queued but its immediate worker wake was unavailable.') }
+      }
       return serviceJson(toAnalysisStatus(result.job), 202)
     }),
     list: (request: Request) => serviceHandle(async () => {

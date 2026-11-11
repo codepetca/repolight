@@ -128,5 +128,18 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
       return await scalar(`SELECT public.rl_fail_analysis($1,$2,$3,$4,$5,$6) AS value`, [...leaseArgs(lease), analysisErrorCodeSchema.parse(failure.code), failure.retryable, failure.retryAfterSeconds ?? 15]) === true
     },
     async recoverExpiredJobs() { return Number(await scalar(`SELECT public.rl_recover_jobs() AS value`, [])) },
+    async nextAnalysisWakeDelaySeconds() {
+      const delay = await scalar(`
+        SELECT ceil(extract(epoch FROM (min(wake_at) - statement_timestamp()))) AS value
+        FROM (
+          SELECT least(deadline_at, coalesce(next_attempt_at, statement_timestamp())) AS wake_at
+          FROM public.rl_analysis_jobs WHERE status = 'queued'
+          UNION ALL
+          SELECT least(deadline_at, lease_expires_at) AS wake_at
+          FROM public.rl_analysis_jobs WHERE status = 'running'
+        ) AS pending
+      `, [])
+      return delay == null ? null : Math.max(0, Number(delay))
+    },
   }
 }

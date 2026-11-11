@@ -5,6 +5,7 @@ import { Pool } from 'pg'
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createServiceStore } from '@/lib/service/store'
+import { runAnalysisWake } from '@/lib/service/analysis-wake'
 import type { SqlExecutor } from '@/lib/service/sql-executor'
 import type { LeaseIdentity, ServiceStore, StoredJob, WorkspaceRecord } from '@/lib/service/store-types'
 import { buildPublicRepositoryBundle } from '@/lib/report/bundle-build'
@@ -134,6 +135,34 @@ describe.skipIf(!target)('durable service store against disposable PostgreSQL', 
     expect(new Set(active.map(value => value.workspaceId)).size).toBe(2)
     expect(new Set(active.map(value => value.id)).size).toBe(2)
     expect(active.every(value => value.attemptCount===1 && value.leaseGeneration===1)).toBe(true)
+  })
+  it('recovers a missed wake, follows a database retry and stops waking after draining', async () => {
+    const created = await enqueue(a)
+    if (created.kind !== 'accepted') throw new Error('fixture admission')
+    expect(await store.nextAnalysisWakeDelaySeconds()).toBe(0)
+
+    // Simulate the first runtime dying after claim, without publishing a wake.
+    const lost = (await store.claimAnalysis({ workerId: 'lost-runtime' }))!
+    expect(await store.nextAnalysisWakeDelaySeconds()).toBeGreaterThan(0)
+    await pool.query("UPDATE public.rl_analysis_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", [lost.id])
+    expect(await store.nextAnalysisWakeDelaySeconds()).toBe(0)
+    const delays: number[] = []
+    const publish = async (delay: number) => { delays.push(delay) }
+    const collect = async (_target: unknown, options: { onSnapshot?: (value: ReturnType<typeof snapshot>) => Promise<void> }) => {
+      const fixture = skyHopInput()
+      await options.onSnapshot?.(snapshot())
+      return { target: makeRepositoryTarget(fixture.repositoryUrl, fixture.branch)!, snapshot: fixture.snapshot, events: fixture.events, coverage: fixture.coverage }
+    }
+    await runAnalysisWake(store, publish, { client: { collectPublicReportEvidence: collect } })
+    expect(delays).toEqual([15])
+    expect(await store.getJob(a.id, lost.id)).toMatchObject({ status: 'queued', attemptCount: 1 })
+    await pool.query("UPDATE public.rl_analysis_jobs SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE id=$1", [lost.id])
+    await runAnalysisWake(store, publish, { client: { collectPublicReportEvidence: collect } })
+    expect(await store.getJob(a.id, lost.id)).toMatchObject({ status: 'succeeded', attemptCount: 2, leaseGeneration: 2 })
+    expect(await store.getResult(a.id, lost.id)).not.toBeNull()
+    expect(await store.nextAnalysisWakeDelaySeconds()).toBeNull()
+    await runAnalysisWake(store, publish, { client: { collectPublicReportEvidence: collect } })
+    expect(delays).toEqual([15])
   })
   it('fences stale tokens and generations on every worker mutation and persists only one report', async () => {
     const running = await claimed()

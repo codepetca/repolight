@@ -1,29 +1,85 @@
-# Vercel hosted pilot
+# Vercel hosting
 
-Vercel serves the Next.js application and runs the existing analysis worker as a
-Daemon. The collector, database queue, admission limits, fenced leases, retries,
-snapshot pinning and erasure contracts are unchanged. No cron or AI is required.
+The on-demand analysis worker is prepared in source. Production activation and
+hosted acceptance are separate. The Vercel configuration replaces the analysis
+Daemon with private Node.js Functions in `iad1`. The local CLI and Docker/Compose
+worker remain available. The collector, database admission, job ordering, fenced
+leases, retries, snapshot pinning and erasure contracts are unchanged. This
+worker change adds no database migration or AI dependency.
 
-`vercel.json` declares one 1 GiB worker in `iad1`. Its dedicated
-`Dockerfile.vercel-worker` builds the existing bundled worker for Linux amd64 and
-runs it as the non-root `node` user. The original Dockerfile/Compose targets are
-unchanged. The default-deny Docker context excludes private files and credentials.
+## On-demand execution
 
-Daemons are currently a Vercel public beta and run only in production deployments;
-preview deployment success does not prove worker operation. They can stop during
-rollouts. The existing SIGTERM handler aborts collection, and database fencing and
-expiry recovery protect interrupted work. Local `vercel dev` does not run daemons.
-See the [daemon guide](https://vercel.com/docs/daemons),
-[configuration](https://vercel.com/docs/daemons/config-reference) and
-[limits](https://vercel.com/docs/daemons/limits).
+1. An authenticated create commits the job in PostgreSQL, then publishes a wake
+   to the deployment's `repolight-analysis-wake-v1` queue. An exact replay of a
+   queued job can wake it again. A publish failure or timeout leaves the 202 and
+   committed job intact. Wakes contain only `{"version":1}`; their short time
+   buckets coalesce duplicate sends and contain no job or customer data.
+2. Each private queue invocation runs at most one attempt through the existing
+   database claim. Job ordering and one-per-workspace/two-global limits are
+   still enforced in the database. With pending work, the invocation publishes
+   another wake from the earliest stored retry or lease expiry; if the claim
+   found nothing ready, it waits at least 15 seconds before the next wake. An
+   empty queue stops the chain. Delivery failures are retried by Vercel; they do
+   not alter the database attempt limit.
+3. The private hourly `repolight-analysis-recovery` Schedule invokes a worker
+   directly on the active deployment, repairing missed publishes, expired
+   leases and wakes lost with an older deployment. If the queue itself is
+   unavailable, that run can still process one attempt. The next scheduled run
+   can recover further work. On Hobby, the usual recovery window is up to
+   about 75 minutes, allowing for scheduling jitter; outages or skipped runs
+   may take longer. The existing 24-hour job deadline still applies.
 
-Use the task-pinned Vercel CLI 65.2.0 for builds and deployment. The older installed
-CLI 54.17.2 omitted daemon output; 65.2.0 successfully builds the Next.js app and
-emits `daemons.analysis-worker` plus its `.vc-config.json` in the Build Output API
-artifact. The daemon image was built for Linux amd64 and uploaded to this Vercel
-team's container registry during build. Building does not start worker instances.
-Hosted startup and smoke checks below verify the runtime. The
-explicit `npm ci` install preserves the pinned lockfile.
+The two routes require a Vercel deployment and explicit
+`REPOLIGHT_ON_DEMAND_WORKER_ENABLED=true`. Vercel's private function routing is
+the authority boundary; never add public routes or rewrites to these functions.
+Vercel Queues uses project-scoped OIDC and pins wake messages to their publisher
+deployment. No new long-lived queue credential is needed. Function execution
+is capped at 210 seconds to fit the 150-second worker attempt and 120-second
+GitHub collection budgets. The 90-second database lease renews during collection.
+The Queue SDK's visibility timeout is 240 seconds, distinct from database fencing.
+See [Queues](https://vercel.com/docs/queues),
+[Schedules](https://vercel.com/docs/schedules) and
+[Fluid Functions limits](https://vercel.com/docs/functions/limitations).
+
+## Release and acceptance
+
+Use Node 22.23.4, pinned dependencies via `npm ci`, and Vercel CLI 65.14.0.
+After `vercel build`, run `node scripts/verify-vercel-worker-build.mjs` to
+check the two private triggers, function budgets, hourly schedule and absence
+of any daemon or explicit public route to the worker functions.
+Before production, use a separately authorized Vercel preview with isolated
+PostgreSQL and GitHub credentials. Confirm the project has Queues, Schedules,
+Fluid Compute and Vercel system variables/OIDC enabled. Verify unauthenticated
+HTTP cannot invoke either internal function (including forged event headers);
+then check a real private wake, an explicit recovery run for a missed wake, job
+completion and erasure using synthetic data. Verify network access from the
+function to both the dedicated Neon database and GitHub App/token and API
+endpoints. Turn on the flag only in that approved environment, then repeat an
+authorized production smoke on the selected deployment. Leave AI and Pika
+provider/entitlement controls on their separate approval paths.
+
+Inspect the current project's daemon state at cutover; keep any old instance at
+zero. A rollback to an older daemon-based build can restore its daemon settings,
+so verify the zero-instance state before serving that build. Wakes to older
+deployments are only hints; PostgreSQL retains the jobs across rollback and
+redeploy. If needed, run the existing one-attempt CLI against the approved target
+as a bounded recovery action.
+
+There is no five-second idle poll on Vercel. One hourly sweep yields at most 744
+scheduled invocations in a 31-day month, within the documented
+[Hobby Schedules allowance](https://vercel.com/docs/schedules/limits) in isolation.
+It still wakes Neon once per sweep: at a five-minute autosuspend window that
+would be about 62 active hours before report traffic, or about 15.5 CU-hours at
+0.25 CU. Monitor actual Neon compute, Vercel Functions use, and
+[Queue operations](https://vercel.com/docs/queues/pricing) after activation;
+shared team usage and provider limits determine the actual cost and availability.
+
+## Historical daemon pilot
+
+The October pilot ran one 1 GiB Daemon in `iad1`. CLI 65.2.0 emitted its
+Linux amd64 worker bundle; the older CLI 54.17.2 had omitted daemon output.
+The live status and resource settings below describe that pilot at the recorded
+date, not the new on-demand worker.
 
 ## Prepared resources — 2026-10-25
 
@@ -75,7 +131,7 @@ Actual hosted synthetic verification passed:
 Private checksummed evidence is retained by the coordinator. No credentials,
 synthetic passwords, private cookies or generated report bundles belong in Git.
 
-## Next integration boundary
+## October integration boundary (historical)
 
 Pika's reviewed report/feedback code is now deployed through
 [PR#1687](https://github.com/codepetca/pika/pull/1687) at
@@ -92,9 +148,3 @@ RepoLight AI remains OFF. Teacher/workspace/installation key binding and an
 authenticated hosted Pika → RepoLight pilot remain required. The Pika integration
 guide and receipt PR#1689 record the known standalone archive-inventory diagnostic
 limitation; it was not reported passing. Preserve separate cohort/provider holds.
-
-The worker currently polls PostgreSQL every five seconds while idle. This keeps
-Neon compute active, so the Free database allowance should not be treated as a
-guarantee of free continuous operation. Vercel daemon compute/memory usage also
-depends on the team's plan. Monitor the pilot and stop its worker when not in use;
-an event-driven worker can be evaluated before broader rollout.
