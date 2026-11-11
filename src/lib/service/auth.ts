@@ -14,7 +14,9 @@ export function newApiCredential(): { id: string; token: string; secretHash: str
 export function safeApiKeyMetadata(record: ApiKeyMetadata): ApiKeyMetadata {
   return { id: record.id, workspaceId: record.workspaceId, label: record.label, scopes: record.scopes, installationRef: record.installationRef, expiresAt: record.expiresAt, revokedAt: record.revokedAt, createdAt: record.createdAt }
 }
-export async function authenticateService(request: Request, store: ServiceStore, readSession: ReadSession, options: { sessionOnly?: boolean; mutation?: boolean; scope?: ApiKeyScope; initialize?: boolean } = {}): Promise<ServicePrincipal> {
+export async function authenticateService(request: Request, store: ServiceStore, readSession: ReadSession, options: {
+  sessionOnly?: boolean; mutation?: boolean; scope?: ApiKeyScope; initialize?: boolean; unavailableWithoutWorkspace?: boolean
+} = {}): Promise<ServicePrincipal> {
   const authorization = request.headers.get('authorization')
   const hasSessionCookie = /(?:^|;\s*)repocat_session=/.test(request.headers.get('cookie') || '')
   if (authorization && hasSessionCookie) throw new ServiceHttpError('ambiguous_credentials', 401)
@@ -39,6 +41,7 @@ export async function authenticateService(request: Request, store: ServiceStore,
   if (!user) throw new ServiceHttpError('unauthorized', 401)
   if (options.mutation) requireSameOrigin(request)
   const workspace = options.initialize ? await store.getOrCreateWorkspace(user.id) : await store.getWorkspaceForOwner(user.id)
+  if (!workspace && options.unavailableWithoutWorkspace) throw new ServiceHttpError('service_not_configured', 503)
   if (!workspace || workspace.ownerUserId !== user.id) throw new ServiceHttpError('unauthorized', 401)
   return { kind: 'session', workspace, userId: user.id }
 }

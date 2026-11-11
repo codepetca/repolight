@@ -8,7 +8,14 @@ The Vercel pilot configuration and exact prepared resource/migration boundary ar
 documented in [VERCEL.md](VERCEL.md). Hosted activation remains separate from a
 successful local build.
 
-Use Node 22.23.4, `npm ci`, `npm run build` and `npm run build:worker`. Run the web application and a separate `npm run service:worker -- --poll` process. `--once` processes at most one eligible job. An idle poll waits five seconds; SIGTERM/SIGINT abort collection and fenced leases permit recovery. Worker output is a generic outcome, never repository content or credentials.
+The Vercel configuration uses the private on-demand worker described in
+[VERCEL.md](VERCEL.md), which also records its activation status. For local or
+self-managed hosting, use Node 22.23.4, `npm ci`, `npm run build` and
+`npm run build:worker`. Run the web application and a separate
+`npm run service:worker -- --poll` process. `--once` processes at most one eligible
+job. An idle poll waits five seconds; SIGTERM/SIGINT abort collection and fenced
+leases permit recovery. Worker output is a generic outcome, never repository
+content or credentials.
 
 The web process needs `DATABASE_URL`, a randomly generated `SESSION_SECRET` with at least 32 non-padding characters, and production `APP_ORIGIN` set to the exact external origin. Terminate HTTPS at the hosting platform. The worker needs `DATABASE_URL`. For authenticated public collection, set `REPOLIGHT_GITHUB_APP_ID`, `REPOLIGHT_GITHUB_APP_INSTALLATION_ID` and `REPOLIGHT_GITHUB_APP_PRIVATE_KEY` together on the worker; the private key may use literal `\n` escapes. The worker obtains a fresh installation token for each attempt. Partial or invalid App configuration fails closed rather than silently using anonymous requests. With no App settings, the existing optional `GITHUB_TOKEN` (and legacy aliases) remains supported; App settings take precedence. Collection still verifies that each repository is public. Use a minimally scoped App, protect its private key as a runtime secret, and rotate it if exposed. Never use the legacy shared v1 service user/key as a v2 customer identity. Builds require no database or session credentials.
 

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { publicRepositoryBundleSchema, publicRepositoryRequestSchema } from '@/lib/report/bundle-contract'
 import { erasureRequestSchema, erasureReceiptSchema, analysisErrorCodeSchema, analysisIdSchema, analysisResultSchema, clientBindingSchema, digestSchema, feedbackEditSchema, serviceRefSchema, type FeedbackEdit } from './contract'
 import { createNeonSqlExecutor, type SqlExecutor } from './sql-executor'
-import { DEFAULT_SERVICE_LIMITS, type ApiKeyMetadata, type ApiKeyRecord, type EnqueueAnalysisResult, type PinnedSnapshot, type ServiceStore, type StoredJob, type WorkspaceRecord } from './store-types'
+import { DEFAULT_SERVICE_LIMITS, type ApiKeyMetadata, type ApiKeyRecord, type EnqueueAnalysisInput, type EnqueueAnalysisResult, type PinnedSnapshot, type ReplayAnalysisResult, type ServiceStore, type StoredJob, type WorkspaceRecord } from './store-types'
 
 type Row = Record<string, unknown>
 const timestamp = (value: unknown): string => new Date(value instanceof Date ? value.getTime() : String(value)).toISOString()
@@ -35,6 +35,17 @@ const keyIssueSchema = z.object({ id: analysisIdSchema, label: z.string().trim()
   scopes: z.array(z.enum(['analyses:create', 'analyses:read', 'analyses:erase'])).min(1).max(3),
   installationRef: z.string().regex(/^[A-Za-z0-9._~-]{1,128}$/).nullable().optional(), expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
 }).strict()
+
+function analysisRequestArgs(input: EnqueueAnalysisInput) {
+  return [
+    analysisIdSchema.parse(input.workspaceId),
+    input.createdByKeyId ? analysisIdSchema.parse(input.createdByKeyId) : null,
+    z.string().min(1).max(128).parse(input.idempotencyKey),
+    JSON.stringify(publicRepositoryRequestSchema.parse(input.request)),
+    digestSchema.parse(input.requestFingerprint),
+    input.clientBinding ? JSON.stringify(clientBindingSchema.parse(input.clientBinding)) : null,
+  ]
+}
 
 /** Trusted server/worker API. Every public caller must first bind a principal to workspaceId. */
 export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore {
@@ -85,10 +96,38 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
     },
     async enqueueAnalysis(input) {
       const limits = { ...DEFAULT_SERVICE_LIMITS, ...input.limits }
-      const request = publicRepositoryRequestSchema.parse(input.request)
-      const value = await scalar(`SELECT public.rl_enqueue_analysis($1,$2,$3,$4::jsonb,$5,$6::jsonb,$7,$8,$9,$10) AS value`, [analysisIdSchema.parse(input.workspaceId), input.createdByKeyId ? analysisIdSchema.parse(input.createdByKeyId) : null, z.string().min(1).max(128).parse(input.idempotencyKey), JSON.stringify(request), digestSchema.parse(input.requestFingerprint), input.clientBinding ? JSON.stringify(clientBindingSchema.parse(input.clientBinding)) : null, limits.dailyAdmissions, limits.queuedPerWorkspace, limits.maxAttempts, limits.jobLifetimeSeconds]) as Row
+      const value = await scalar(`SELECT public.rl_enqueue_analysis($1,$2,$3,$4::jsonb,$5,$6::jsonb,$7,$8,$9,$10) AS value`, [...analysisRequestArgs(input), limits.dailyAdmissions, limits.queuedPerWorkspace, limits.maxAttempts, limits.jobLifetimeSeconds]) as Row
       if (value.kind === 'accepted' || value.kind === 'replayed') return { kind: value.kind, job: job(value.job as Row) }
       return value as Exclude<EnqueueAnalysisResult, { job: StoredJob }>
+    },
+    async replayAnalysis(input) {
+      // Read-only counterpart to rl_enqueue_analysis when admission is disabled.
+      // One snapshot checks the key, erasure tombstone and exact request together.
+      const value = await scalar(`
+        SELECT CASE
+          WHEN $2::uuid IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM public.rl_api_keys k
+            WHERE k.id=$2 AND k.workspace_id=w.id AND k.revoked_at IS NULL
+              AND (k.expires_at IS NULL OR k.expires_at>statement_timestamp())
+              AND k.scopes ? 'analyses:create'
+              AND (k.installation_ref IS NULL OR k.installation_ref=$6::jsonb->>'installationRef')
+          ) THEN jsonb_build_object('kind','unauthorized')
+          WHEN EXISTS (
+            SELECT 1 FROM public.rl_subject_erasures e WHERE e.workspace_id=w.id
+              AND e.installation_ref=$6::jsonb->>'installationRef' AND e.subject_ref=$6::jsonb->>'subjectRef'
+          ) THEN jsonb_build_object('kind','subject_erased')
+          WHEN j.id IS NULL THEN jsonb_build_object('kind','unavailable')
+          WHEN j.request_fingerprint<>$5 OR j.request_json<>$4::jsonb OR j.client_binding IS DISTINCT FROM $6::jsonb
+            THEN jsonb_build_object('kind','conflict')
+          ELSE jsonb_build_object('kind','replayed','job',to_jsonb(j))
+        END AS value
+        FROM public.rl_workspaces w
+        LEFT JOIN public.rl_analysis_jobs j ON j.workspace_id=w.id AND j.idempotency_key=$3
+        WHERE w.id=$1
+      `, analysisRequestArgs(input)) as Row | undefined
+      if (!value) return { kind: 'unauthorized' }
+      if (value.kind === 'replayed') return { kind: 'replayed', job: job(value.job as Row) }
+      return value as Exclude<ReplayAnalysisResult, { job: StoredJob }>
     },
     async getJob(workspaceId, jobId) {
       const rows = await db().query(`SELECT * FROM public.rl_analysis_jobs WHERE workspace_id=$1 AND id=$2`, [analysisIdSchema.parse(workspaceId), analysisIdSchema.parse(jobId)])
@@ -128,5 +167,18 @@ export function createServiceStore(providedExecutor?: SqlExecutor): ServiceStore
       return await scalar(`SELECT public.rl_fail_analysis($1,$2,$3,$4,$5,$6) AS value`, [...leaseArgs(lease), analysisErrorCodeSchema.parse(failure.code), failure.retryable, failure.retryAfterSeconds ?? 15]) === true
     },
     async recoverExpiredJobs() { return Number(await scalar(`SELECT public.rl_recover_jobs() AS value`, [])) },
+    async nextAnalysisWakeDelaySeconds() {
+      const delay = await scalar(`
+        SELECT ceil(extract(epoch FROM (min(wake_at) - statement_timestamp()))) AS value
+        FROM (
+          SELECT least(deadline_at, coalesce(next_attempt_at, statement_timestamp())) AS wake_at
+          FROM public.rl_analysis_jobs WHERE status = 'queued'
+          UNION ALL
+          SELECT least(deadline_at, lease_expires_at) AS wake_at
+          FROM public.rl_analysis_jobs WHERE status = 'running'
+        ) AS pending
+      `, [])
+      return delay == null ? null : Math.max(0, Number(delay))
+    },
   }
 }

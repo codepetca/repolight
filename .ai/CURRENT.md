@@ -1,4 +1,13 @@
-# Checkpoint — 2026-10-25 (America/Toronto)
+# On-demand hosted analysis — prepared 2026-11-11
+
+The branch replaces the Vercel analysis daemon with private queue and scheduled
+functions. The PostgreSQL job contract and migrations are unchanged. Local
+Vercel Build Output and all 302 tests (including disposable PostgreSQL) passed.
+No hosted environment, credentials, provider controls, or deployment changed.
+See [VERCEL.md](../docs/VERCEL.md) for explicit activation, isolated hosted
+acceptance and rollback steps.
+
+# Historical checkpoint — 2026-10-25 (America/Toronto)
 
 RepoLight is live at https://repolight.vercel.app. Human approval on 2026-10-25
 covered the frozen migrations 0000–0005 on dedicated Neon `repolight-db` /

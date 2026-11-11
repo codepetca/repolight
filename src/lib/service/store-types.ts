@@ -43,6 +43,7 @@ export type EnqueueAnalysisResult =
   | { kind: 'unauthorized' }
   | { kind: 'subject_erased' }
   | { kind: 'limited'; reason: 'daily_limit' | 'queue_limit' }
+export type ReplayAnalysisResult = Exclude<EnqueueAnalysisResult, { kind: 'accepted' | 'limited' }> | { kind: 'unavailable' }
 export interface LeaseIdentity { jobId: string; leaseToken: string; leaseGeneration: number }
 export interface ServiceStore {
   rotateManaged(input: { installationRef: string; tenantRef: string; operationRef: string; expectedKeyId: string; keyId: string; secretHash: string }): Promise<{ kind: 'created' | 'replayed'; workspaceRef: string } | { kind: 'conflict' }>;
@@ -55,6 +56,7 @@ export interface ServiceStore {
   revokeApiKey(workspaceId: string, keyId: string): Promise<boolean>;
   findApiKey(keyId: string): Promise<ApiKeyRecord | null>;
   enqueueAnalysis(input: EnqueueAnalysisInput): Promise<EnqueueAnalysisResult>;
+  replayAnalysis(input: EnqueueAnalysisInput): Promise<ReplayAnalysisResult>;
   getJob(workspaceId: string, jobId: string): Promise<StoredJob | null>;
   listJobs(workspaceId: string, limit?: number, installationRef?: string): Promise<StoredJob[]>;
   getResult(workspaceId: string, jobId: string): Promise<AnalysisResult | null>;
@@ -66,4 +68,6 @@ export interface ServiceStore {
   completeAnalysis(lease: LeaseIdentity, input: { bundle: PublicRepositoryBundle; reportDigest: string }): Promise<boolean>;
   failOrRetryAnalysis(lease: LeaseIdentity, failure: { code: AnalysisErrorCode; retryable: boolean; retryAfterSeconds?: number }): Promise<boolean>;
   recoverExpiredJobs(): Promise<number>;
+  /** Scheduling hint only. Null means no queued jobs or running leases were observed. */
+  nextAnalysisWakeDelaySeconds(): Promise<number | null>;
 }

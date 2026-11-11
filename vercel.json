@@ -2,14 +2,21 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci",
+  "buildCommand": "REPOLIGHT_VERCEL_BUILD=1 npm run build",
   "regions": ["iad1"],
-  "daemons": {
-    "analysis-worker": {
-      "root": ".",
-      "entrypoint": "Dockerfile.vercel-worker",
-      "instances": { "iad1": 1 },
-      "resources": { "requests": { "memory": "1Gi" } },
-      "terminationGracePeriodSeconds": 30
+  "fluid": true,
+  "functions": {
+    "src/app/api/internal/analysis-wake/route.ts": {
+      "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "repolight-analysis-wake-v1" }]
+    },
+    "src/app/api/internal/analysis-recovery/route.ts": {
+      "experimentalTriggers": [{ "type": "schedule/v1beta" }]
+    }
+  },
+  "schedules": {
+    "repolight-analysis-recovery": {
+      "schedule": "0 * * * *",
+      "function": "api/internal/analysis-recovery"
     }
   }
 }
