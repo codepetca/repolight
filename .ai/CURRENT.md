@@ -2,7 +2,7 @@
 
 The branch replaces the Vercel analysis daemon with private queue and scheduled
 functions. The PostgreSQL job contract and migrations are unchanged. Local
-Vercel Build Output and all 297 tests (including disposable PostgreSQL) passed.
+Vercel Build Output and all 302 tests (including disposable PostgreSQL) passed.
 No hosted environment, credentials, provider controls, or deployment changed.
 See [VERCEL.md](../docs/VERCEL.md) for explicit activation, isolated hosted
 acceptance and rollback steps.

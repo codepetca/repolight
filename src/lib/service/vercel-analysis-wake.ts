@@ -6,6 +6,12 @@ export const ANALYSIS_RECOVERY_SCHEDULE = 'repolight-analysis-recovery'
 export const analysisWakeMessage = z.object({ version: z.literal(1) }).strict()
 const queue = new QueueClient({ region: 'iad1', telemetry: { isEnabled: false } })
 
+export function isHostedAnalysisDeployment() {
+  // The build flag still identifies a Vercel artifact when system variables are hidden.
+  return process.env.REPOLIGHT_VERCEL_BUILD === '1' || Boolean(process.env.VERCEL_DEPLOYMENT_ID) ||
+    (process.env.VERCEL === '1' && process.env.VERCEL_ENV !== 'development')
+}
+
 export function analysisWakeEnabled() {
   return process.env.REPOLIGHT_ON_DEMAND_WORKER_ENABLED === 'true' &&
     process.env.VERCEL === '1' && Boolean(process.env.VERCEL_DEPLOYMENT_ID)

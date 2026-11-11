@@ -44,25 +44,46 @@ describe('workspace-scoped v2 API', () => {
     vi.mocked(store.enqueueAnalysis).mockResolvedValueOnce({ kind: 'conflict' })
     expect((await api.create(req())).status).toBe(409)
   })
-  it('keeps committed admissions accepted when a wake fails and wakes queued replays without job data', async () => {
+  it('keeps committed admissions accepted when a wake fails and keeps replays out of the queue', async () => {
     const api = createServiceApi(store, async () => ({ id: userId }))
-    const wake = vi.fn(async () => {
+    const wake = vi.fn(() => {
       expect(store.enqueueAnalysis).toHaveBeenCalled()
       throw new Error('private provider diagnostics')
     })
     const log = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      const accepted = await api.create(req(), wake)
+      const accepted = await api.create(req(), { scheduleWake: wake })
       expect(accepted.status).toBe(202)
       expect(await accepted.json()).toMatchObject({ analysisId: jobId, status: 'queued' })
-      vi.mocked(store.enqueueAnalysis).mockResolvedValueOnce({ kind: 'replayed', job })
-      expect((await api.create(req(), wake)).status).toBe(202)
+      vi.mocked(store.enqueueAnalysis).mockResolvedValue({ kind: 'replayed', job })
+      const replays = await Promise.all(Array.from({ length: 5 }, () => api.create(req(), { scheduleWake: wake })))
+      for (const replay of replays) {
+        expect(replay.status).toBe(202)
+        expect(await replay.json()).toMatchObject({ analysisId: jobId, status: 'queued' })
+      }
       vi.mocked(store.enqueueAnalysis).mockResolvedValueOnce({ kind: 'replayed', job: { ...job, status: 'failed' } })
-      expect((await api.create(req(), wake)).status).toBe(202)
-      expect((await api.create(req(body, { origin: 'https://wrong.example' }), wake)).status).toBe(403)
-      expect(wake.mock.calls).toEqual([[], []])
-      expect(log.mock.calls).toEqual(Array.from({ length: 2 }, () => ['Analysis was queued but its immediate worker wake was unavailable.']))
+      expect((await api.create(req(), { scheduleWake: wake })).status).toBe(202)
+      expect((await api.create(req(body, { origin: 'https://wrong.example' }), { scheduleWake: wake })).status).toBe(403)
+      expect(wake.mock.calls).toEqual([[]])
+      expect(log.mock.calls).toEqual([['Analysis was queued but its immediate worker wake could not be scheduled.']])
     } finally { log.mockRestore() }
+  })
+  it('reconciles exact authenticated replays while hosted admission is unavailable', async () => {
+    const replayAnalysis = vi.fn().mockResolvedValue({ kind: 'replayed', job })
+    const api = createServiceApi({ ...store, replayAnalysis }, async () => null)
+    const { headers } = bearer()
+    const options = { allowAdmission: false, scheduleWake: vi.fn() }
+    const replay = await api.create(req(body, headers), options)
+    expect(replay.status).toBe(202)
+    expect(await replay.json()).toMatchObject({ analysisId: jobId, status: 'queued' })
+    replayAnalysis.mockResolvedValueOnce({ kind: 'unavailable' })
+    const unavailable = await api.create(req(body, headers), options)
+    expect(unavailable.status).toBe(503)
+    expect(await unavailable.json()).toEqual({ error: { code: 'service_not_configured' } })
+    expect((await api.create(req(), options)).status).toBe(401)
+    expect(replayAnalysis).toHaveBeenCalledTimes(2)
+    expect(store.enqueueAnalysis).not.toHaveBeenCalled()
+    expect(options.scheduleWake).not.toHaveBeenCalled()
   })
   it('does not let request bodies choose a workspace/customer or bypass installation binding', async () => {
     const { headers } = bearer('installation-a')

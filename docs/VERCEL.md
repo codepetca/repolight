@@ -9,11 +9,12 @@ worker change adds no database migration or AI dependency.
 
 ## On-demand execution
 
-1. An authenticated create commits the job in PostgreSQL, then publishes a wake
-   to the deployment's `repolight-analysis-wake-v1` queue. An exact replay of a
-   queued job can wake it again. A publish failure or timeout leaves the 202 and
-   committed job intact. Wakes contain only `{"version":1}`; their short time
-   buckets coalesce duplicate sends and contain no job or customer data.
+1. An authenticated create commits a new job in PostgreSQL and returns 202. A
+   Next.js `after()` callback publishes a wake to the deployment's
+   `repolight-analysis-wake-v1` queue after the response. An exact replay returns
+   the existing job status. Scheduled recovery picks up the committed job if
+   the publish fails. Wakes contain only `{"version":1}`.
+   Their short time buckets coalesce deliveries and contain no job or customer data.
 2. Each private queue invocation runs at most one attempt through the existing
    database claim. Job ordering and one-per-workspace/two-global limits are
    still enforced in the database. With pending work, the invocation publishes
@@ -29,8 +30,11 @@ worker change adds no database migration or AI dependency.
    about 75 minutes, allowing for scheduling jitter; outages or skipped runs
    may take longer. The existing 24-hour job deadline still applies.
 
-The two routes require a Vercel deployment and explicit
-`REPOLIGHT_ON_DEMAND_WORKER_ENABLED=true`. Vercel's private function routing is
+The two routes require Vercel system variables and
+`REPOLIGHT_ON_DEMAND_WORKER_ENABLED=true`. Until those settings are available,
+Vercel builds return `503 service_not_configured` for new submissions. An
+authenticated exact retry can still recover an already accepted job.
+Vercel's private function routing is
 the authority boundary; never add public routes or rewrites to these functions.
 Vercel Queues uses project-scoped OIDC and pins wake messages to their publisher
 deployment. No new long-lived queue credential is needed. Function execution
@@ -47,22 +51,31 @@ Use Node 22.23.4, pinned dependencies via `npm ci`, and Vercel CLI 65.14.0.
 After `vercel build`, run `node scripts/verify-vercel-worker-build.mjs` to
 check the two private triggers, function budgets, hourly schedule and absence
 of any daemon or explicit public route to the worker functions.
-Before production, use a separately authorized Vercel preview with isolated
-PostgreSQL and GitHub credentials. Confirm the project has Queues, Schedules,
-Fluid Compute and Vercel system variables/OIDC enabled. Verify unauthenticated
-HTTP cannot invoke either internal function (including forged event headers);
-then check a real private wake, an explicit recovery run for a missed wake, job
-completion and erasure using synthetic data. Verify network access from the
-function to both the dedicated Neon database and GitHub App/token and API
-endpoints. Turn on the flag only in that approved environment, then repeat an
-authorized production smoke on the selected deployment. Leave AI and Pika
-provider/entitlement controls on their separate approval paths.
+Use an isolated Vercel preview with its own PostgreSQL and GitHub credentials.
+Confirm Queues, Schedules, Fluid Compute and Vercel system variables/OIDC are
+available and set `REPOLIGHT_ON_DEMAND_WORKER_ENABLED=true` on that preview.
+Verify unauthenticated HTTP cannot invoke either internal function or its
+emitted `.rsc` alias, including with forged event headers. Confirm a real
+post-response wake, job completion, and erasure with synthetic data. This
+exercises network access from the functions to Neon and GitHub.
+
+Preview schedules start inactive. Run the preview schedule on demand to verify
+recovery from a missed wake. If testing its cadence, enable it for a short
+window and disable it at the end. Production schedules start active. Set the
+worker flag and confirm the static recovery schedule is active on the
+production candidate at cutover. Smoke test an authenticated new analysis after
+promotion. Disable the schedule itself if taking recovery offline because a
+schedule run counts toward quota even if the function declines to process it.
+Leave AI and Pika provider/entitlement controls on their separate approval paths.
 
 Inspect the current project's daemon state at cutover; keep any old instance at
 zero. A rollback to an older daemon-based build can restore its daemon settings,
-so verify the zero-instance state before serving that build. Wakes to older
-deployments are only hints; PostgreSQL retains the jobs across rollback and
-redeploy. If needed, run the existing one-attempt CLI against the approved target
+so verify the zero-instance state before serving that build. PostgreSQL retains
+jobs across rollback and redeploy. Queues can still deliver unexpired wakes to
+the deployment that published them. Its original flag and database access
+remain in effect and its worker can claim shared jobs. When the goal is to stop
+processing, disable the active schedule and verify old worker invocations have
+ceased. If needed, run the existing one-attempt CLI against the approved target
 as a bounded recovery action.
 
 There is no five-second idle poll on Vercel. One hourly sweep yields at most 744

@@ -53,6 +53,22 @@ describe.skipIf(!target)('permanent subject erasure in disposable PostgreSQL', (
     await pool.query("UPDATE public.rl_analysis_jobs SET status='running',attempt_count=1,lease_generation=1,lease_token=$2,lease_expires_at=clock_timestamp()+interval '90 seconds',worker_id='erasure-fixture' WHERE id=$1 AND workspace_id=$3", [queued.job.id, randomUUID(), a.id])
     return (await store.getJob(a.id, queued.job.id))!
   }
+  it('replays existing requests read-only with workspace, live key, exact body and tombstone checks', async () => {
+    const keyId = randomUUID()
+    await store.issueApiKey(a.id, { id: keyId, label: 'Replay fixture', secretHash: 'a'.repeat(64), scopes: ['analyses:create'], installationRef: binding.installationRef })
+    const input = { workspaceId: a.id, createdByKeyId: keyId, request: settings, requestFingerprint: digestJson(settings), clientBinding: binding, idempotencyKey: randomUUID() }
+    expect(await store.replayAnalysis(input)).toEqual({ kind: 'unavailable' })
+    expect(await store.listJobs(a.id)).toEqual([])
+    const admitted = await store.enqueueAnalysis(input)
+    if (admitted.kind !== 'accepted') throw new Error('fixture admission failed')
+    expect(await store.replayAnalysis(input)).toEqual({ kind: 'replayed', job: admitted.job })
+    expect(await store.replayAnalysis({ ...input, workspaceId: b.id })).toEqual({ kind: 'unauthorized' })
+    expect(await store.replayAnalysis({ ...input, request: { ...settings, branch: 'different' } })).toEqual({ kind: 'conflict' })
+    expect(await store.revokeApiKey(a.id, keyId)).toBe(true)
+    expect(await store.replayAnalysis(input)).toEqual({ kind: 'unauthorized' })
+    expect(await store.eraseSubject({ workspaceId: a.id, request: operation() })).toMatchObject({ kind: 'erased' })
+    expect(await store.replayAnalysis({ ...input, createdByKeyId: null })).toEqual({ kind: 'subject_erased' })
+  })
   it('erases all job states, reports and edits, verifies absence and permanently rejects future creates', async () => {
     const completed = await running(), report = bundle(completed)
     await store.pinSnapshot(lease(completed), snapshot)
