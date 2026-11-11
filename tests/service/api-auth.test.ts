@@ -85,6 +85,20 @@ describe('workspace-scoped v2 API', () => {
     expect(store.enqueueAnalysis).not.toHaveBeenCalled()
     expect(options.scheduleWake).not.toHaveBeenCalled()
   })
+  it('returns unavailable for a first-time signed-in owner without initializing a workspace', async () => {
+    vi.mocked(store.getWorkspaceForOwner).mockResolvedValue(null)
+    const replayAnalysis = vi.fn()
+    const api = createServiceApi({ ...store, replayAnalysis }, async () => ({ id: userId }))
+    const options = { allowAdmission: false }
+    const response = await api.create(req(), options)
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: { code: 'service_not_configured' } })
+    expect((await api.create(req(body, { authorization: 'Bearer invalid' }), options)).status).toBe(401)
+    expect((await api.create(req(body, { origin: 'https://wrong.example' }), options)).status).toBe(403)
+    expect(store.getOrCreateWorkspace).not.toHaveBeenCalled()
+    expect(store.enqueueAnalysis).not.toHaveBeenCalled()
+    expect(replayAnalysis).not.toHaveBeenCalled()
+  })
   it('does not let request bodies choose a workspace/customer or bypass installation binding', async () => {
     const { headers } = bearer('installation-a')
     const api = createServiceApi(store, async () => null)

@@ -29,7 +29,9 @@ export function createServiceApi(store: ServiceStore, readSession: ReadSession) 
       const parsed = createAnalysisRequestSchema.parse(await readServiceJson(request))
       const body = { ...parsed, request: { ...parsed.request, repositoryUrl: makeRepositoryTarget(parsed.request.repositoryUrl, parsed.request.branch)!.repoUrl } }
       const allowAdmission = options.allowAdmission !== false
-      const principal = await authenticateService(request, store, readSession, { mutation: true, scope: 'analyses:create', initialize: allowAdmission })
+      const principal = await authenticateService(request, store, readSession, {
+        mutation: true, scope: 'analyses:create', initialize: allowAdmission, unavailableWithoutWorkspace: !allowAdmission,
+      })
       const idempotencyKey = request.headers.get('idempotency-key')
       if (!idempotencyKey || !/^[A-Za-z0-9._~-]{1,128}$/.test(idempotencyKey)) throw new ServiceHttpError('idempotency_key_required', 400)
       if (principal.kind === 'key' && (principal.installationRef !== (body.clientBinding?.installationRef ?? null))) throw new ServiceHttpError('installation_binding_mismatch', 403)
